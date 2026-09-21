@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:18
+    container_name: physiodesk-db
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-physiodesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-physiodesk}
+      POSTGRES_DB: ${POSTGRES_DB:-physiodesk}
+    volumes:
+      - physiodesk_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-physiodesk} -d ${POSTGRES_DB:-physiodesk}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  physiodesk_pgdata:

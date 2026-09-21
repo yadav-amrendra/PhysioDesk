@@ -1,0 +1,22 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Env (secrets) — keep examples if added later
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# pnpm
+.pnpm-store/
+
+# Docker named volumes are managed by Docker; local overrides only
