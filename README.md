@@ -91,12 +91,17 @@ Open http://localhost:3000
 | `DEBUG` | SQL echo / debug flag |
 | `DATABASE_URL` | SQLAlchemy URL (`postgresql+psycopg://…`) |
 | `CORS_ORIGINS` | Comma-separated allowed origins |
+| `JWT_SECRET_KEY` | Secret used to sign JWTs |
+| `JWT_ALGORITHM` | JWT algorithm (default `HS256`) |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime |
 
 ### Client (`client/.env.local`)
 
 | Variable | Description |
 | --- | --- |
-| `API_URL` | FastAPI base URL for server components |
+| `API_URL` | FastAPI base URL (server components) |
+| `NEXT_PUBLIC_API_URL` | FastAPI base URL (browser / login) |
 
 ## Backend structure
 
@@ -120,7 +125,45 @@ uv run alembic revision --autogenerate -m "describe change"
 uv run alembic upgrade head
 ```
 
-## Useful commands
+### Auth API
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/v1/auth/login` | No | Email + password → access & refresh JWT |
+| `POST` | `/api/v1/auth/refresh` | No | Refresh token → new token pair |
+| `GET` | `/api/v1/auth/me` | Bearer | Current user profile |
+
+Roles: `admin` (full access), `staff` (restricted on billing/therapists — enforced as those modules land).
+
+Seed users (after migrate):
+
+```bash
+cd server
+uv run python scripts/seed_users.py
+```
+
+| Email | Password | Role |
+| --- | --- | --- |
+| `admin@physiodesk.com` | `Admin123!` | admin |
+| `staff@physiodesk.com` | `Staff123!` | staff |
+
+Passwords are hashed with **Argon2** (`pwdlib`). `/` and `/api/v1/health` stay public for ops; other routes will require auth as they are added.
+
+## Frontend structure
+
+```
+client/app/
+  (app)/            # authenticated shell (sidebar + pages)
+  login/            # login page (no sidebar)
+client/components/
+  layout/           # AppShell, Sidebar, TopBar
+  ui/               # Button, Card, StatusPill, Input
+```
+
+Design system tokens live in `client/app/globals.css` (palette + Fraunces / Inter / IBM Plex Mono).
+
+Auth: login-only (no signup). Tokens live in `localStorage`. Unauthenticated users are redirected to `/login`. Staff do not see the Therapists nav (admin-only).
+
 
 | Command | Where | Purpose |
 | --- | --- | --- |

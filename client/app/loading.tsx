@@ -1,6 +1,6 @@
 export default function Loading() {
   return (
-    <div className="flex flex-1 items-center justify-center text-sm text-muted">
+    <div className="flex min-h-full items-center justify-center bg-background text-sm text-text-secondary">
       Loading PhysioDesk…
     </div>
   );

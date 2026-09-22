@@ -5,6 +5,6 @@ Import concrete models here so Alembic and metadata discovery see them.
 
 from sqlmodel import SQLModel
 
-# from app.models.user import User  # noqa: F401 — add as features land
+from app.models.user import User, UserRole
 
-__all__ = ["SQLModel"]
+__all__ = ["SQLModel", "User", "UserRole"]

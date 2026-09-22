@@ -1,32 +1,62 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f6f8;
-  --foreground: #14201c;
-  --muted: #5c6b64;
+  /* Structural */
+  --primary: #b8763a;
+  --primary-text-on-soft: #5c3a17;
+  --primary-soft: #f0dfc7;
+  --secondary: #132420;
+  --secondary-light: #1d362f;
+  --tertiary: #4f7c63;
+  --tertiary-soft: #e1ebe3;
+  --background: #f6f3ea;
   --surface: #ffffff;
-  --border: #d8e0db;
-  --accent: #0f6b4c;
-  --accent-soft: #e6f3ed;
-  --danger: #9b2c2c;
-  --danger-soft: #fdecec;
+  --border: #e4dfd1;
+  --text-primary: #1c2622;
+  --text-secondary: #797365;
+
+  /* Status */
+  --status-success: #4f7c63;
+  --status-success-soft: #e1ebe3;
+  --status-danger: #b5493b;
+  --status-danger-soft: #f3deda;
+  --status-neutral: #5e6b78;
+  --status-neutral-soft: #e7ebee;
+
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(28 38 34 / 4%), 0 8px 24px rgb(28 38 34 / 6%);
 }
 
 @theme inline {
+  --color-primary: var(--primary);
+  --color-primary-text-on-soft: var(--primary-text-on-soft);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-light: var(--secondary-light);
+  --color-tertiary: var(--tertiary);
+  --color-tertiary-soft: var(--tertiary-soft);
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-muted: var(--muted);
   --color-surface: var(--surface);
   --color-border: var(--border);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
-  --color-danger: var(--danger);
-  --color-danger-soft: var(--danger-soft);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-status-success: var(--status-success);
+  --color-status-success-soft: var(--status-success-soft);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-soft: var(--status-danger-soft);
+  --color-status-neutral: var(--status-neutral);
+  --color-status-neutral-soft: var(--status-neutral-soft);
+
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-fraunces);
+  --font-mono: var(--font-ibm-plex-mono);
+
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px rgb(28 38 34 / 4%), 0 8px 24px rgb(28 38 34 / 6%);
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
+  color: var(--text-primary);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
 }
