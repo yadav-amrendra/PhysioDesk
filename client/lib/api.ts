@@ -1,3 +1,10 @@
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+} from "@/lib/auth-storage";
+
 const DEFAULT_API_URL = "http://127.0.0.1:8000";
 
 /** API base URL for server and browser. Prefer NEXT_PUBLIC_ for client bundles. */
@@ -25,18 +32,52 @@ type RequestOptions = {
   body?: unknown;
   token?: string | null;
   auth?: boolean;
+  /** Skip 401 → refresh → retry (used by refresh itself). */
+  skipRefresh?: boolean;
 };
 
-function getStoredAccessToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("physiodesk_access_token");
+let refreshInFlight: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) {
+      clearTokens();
+      return null;
+    }
+
+    try {
+      const tokens = await apiRequest<TokenResponse>("/api/v1/auth/refresh", {
+        method: "POST",
+        body: { refresh_token: refreshToken },
+        skipRefresh: true,
+      });
+      setTokens(tokens.access_token, tokens.refresh_token);
+      return tokens.access_token;
+    } catch {
+      clearTokens();
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
 }
 
 export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { method = "GET", body, token, auth = false } = options;
+  const {
+    method = "GET",
+    body,
+    token,
+    auth = false,
+    skipRefresh = false,
+  } = options;
   const headers: Record<string, string> = {
     Accept: "application/json",
   };
@@ -45,7 +86,7 @@ export async function apiRequest<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  const bearer = token ?? (auth ? getStoredAccessToken() : null);
+  const bearer = token ?? (auth ? getAccessToken() : null);
   if (bearer) {
     headers.Authorization = `Bearer ${bearer}`;
   }
@@ -56,6 +97,18 @@ export async function apiRequest<T>(
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
+
+  const usedAuth = Boolean(bearer) || auth;
+  if (res.status === 401 && usedAuth && !skipRefresh && typeof window !== "undefined") {
+    const nextAccess = await refreshAccessToken();
+    if (nextAccess) {
+      return apiRequest<T>(path, {
+        ...options,
+        token: nextAccess,
+        skipRefresh: true,
+      });
+    }
+  }
 
   if (!res.ok) {
     let errorBody: unknown;

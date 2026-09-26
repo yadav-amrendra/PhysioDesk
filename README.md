@@ -185,6 +185,12 @@ uv run alembic upgrade head
 | `PATCH` | `/api/v1/invoices/{id}` | **Admin** | Update / mark paid |
 | `DELETE` | `/api/v1/invoices/{id}` | **Admin** | Void/delete |
 
+### Dashboard API
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/v1/dashboard` | Live stats, therapist capacity, recent patients (`?date=` optional) |
+
 Roles: `admin` (full access), `staff` (patients/schedule; **billing read-only**; therapists management admin-only).
 
 Seed users (after migrate):
