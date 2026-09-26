@@ -162,3 +162,71 @@ export type DayOverridePayload = {
   start_time?: string | null;
   end_time?: string | null;
 };
+
+export type Package = {
+  id: number;
+  name: string;
+  session_count: number;
+  price: string | number;
+  description: string | null;
+  is_active: boolean;
+};
+
+export type PatientGender = "male" | "female" | "other" | "unspecified";
+export type PatientStatus = "active" | "completed" | "on_hold";
+
+export type Patient = {
+  id: number;
+  full_name: string;
+  phone: string;
+  age: number;
+  gender: PatientGender;
+  address: string;
+  condition: string;
+  therapist_id: number;
+  therapist_name: string;
+  package_id: number;
+  package_name: string;
+  status: PatientStatus;
+};
+
+export type PatientPayload = {
+  full_name: string;
+  phone: string;
+  age: number;
+  gender: PatientGender;
+  address: string;
+  condition: string;
+  therapist_id: number;
+  package_id: number;
+  status: PatientStatus;
+};
+
+export type PatientSession = {
+  id: number;
+  appointment_date: string;
+  start_time: string;
+  end_time: string;
+  therapist_id: number;
+  therapist_name: string;
+  status: string;
+  payment_method: string;
+  notes: string | null;
+};
+
+export type PatientInvoice = {
+  id: number;
+  invoice_number: string;
+  issued_on: string;
+  package_name: string;
+  amount: string;
+  discount: string;
+  net_amount: string;
+  status: string;
+  payment_method: string;
+};
+
+export type PatientDetail = Patient & {
+  sessions: PatientSession[];
+  invoices: PatientInvoice[];
+};

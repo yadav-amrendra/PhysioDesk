@@ -13,6 +13,7 @@ export function Modal({
   onClose,
   children,
   className,
+  zIndexClass = "z-50",
 }: {
   open: boolean;
   title: string;
@@ -20,6 +21,7 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
   className?: string;
+  zIndexClass?: string;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -33,7 +35,7 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className={cn("fixed inset-0 flex items-center justify-center p-4", zIndexClass)}>
       <button
         type="button"
         aria-label="Close dialog"

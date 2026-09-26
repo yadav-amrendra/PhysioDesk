@@ -7,6 +7,7 @@ import { TherapistFormModal } from "@/components/therapists/TherapistFormModal";
 import { AppTopBar } from "@/components/layout/AppTopBar";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
 import { StatusPill } from "@/components/ui/StatusPill";
 import {
@@ -46,6 +47,8 @@ export function TherapistsPageClient() {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Therapist | null>(null);
   const [overrideFor, setOverrideFor] = useState<Therapist | null>(null);
+  const [deactivating, setDeactivating] = useState<Therapist | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -85,19 +88,17 @@ export function TherapistsPageClient() {
     await load();
   }
 
-  async function handleDeactivate(therapist: Therapist) {
-    if (
-      !window.confirm(
-        `Deactivate ${therapist.full_name}? Existing appointments stay; they leave the active roster.`,
-      )
-    ) {
-      return;
-    }
+  async function handleDeactivateConfirm() {
+    if (!deactivating) return;
+    setConfirmBusy(true);
     try {
-      await apiDelete(`/api/v1/therapists/${therapist.id}`, true);
+      await apiDelete(`/api/v1/therapists/${deactivating.id}`, true);
+      setDeactivating(null);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not deactivate");
+    } finally {
+      setConfirmBusy(false);
     }
   }
 
@@ -223,7 +224,7 @@ export function TherapistsPageClient() {
                               variant="ghost"
                               className="h-8 w-8 px-0 text-status-danger"
                               title="Deactivate"
-                              onClick={() => void handleDeactivate(t)}
+                              onClick={() => setDeactivating(t)}
                             >
                               <Trash2 className="h-4 w-4 shrink-0" />
                             </Button>
@@ -254,6 +255,22 @@ export function TherapistsPageClient() {
         therapist={overrideFor}
         onClose={() => setOverrideFor(null)}
         onChanged={() => void load()}
+      />
+
+      <ConfirmDialog
+        open={deactivating !== null}
+        title="Deactivate therapist?"
+        description={
+          deactivating
+            ? `${deactivating.full_name} will leave the active roster. Existing appointments stay in place.`
+            : ""
+        }
+        confirmLabel="Deactivate"
+        busy={confirmBusy}
+        onClose={() => {
+          if (!confirmBusy) setDeactivating(null);
+        }}
+        onConfirm={handleDeactivateConfirm}
       />
     </>
   );

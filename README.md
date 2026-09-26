@@ -140,16 +140,32 @@ uv run alembic upgrade head
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/v1/therapists` | Roster list (`q`, `include_inactive`); includes weekly hours + patients seen today |
-| `POST` | `/api/v1/therapists` | Create therapist |
-| `GET` | `/api/v1/therapists/{id}` | Get one |
-| `PATCH` | `/api/v1/therapists/{id}` | Update |
-| `DELETE` | `/api/v1/therapists/{id}` | Soft-deactivate (`is_active=false`; appointments kept) |
-| `GET` | `/api/v1/therapists/{id}/overrides` | List day overrides |
-| `PUT` | `/api/v1/therapists/{id}/overrides` | Upsert day off / custom hours for a date |
-| `DELETE` | `/api/v1/therapists/{id}/overrides/{override_id}` | Remove override |
+| `GET` | `/api/v1/therapists` | Roster list (`q`, `include_inactive`); includes weekly hours + patients seen today. **Any authenticated user** (for patient assignment). |
+| `POST` | `/api/v1/therapists` | Create therapist (**admin**) |
+| `GET` | `/api/v1/therapists/{id}` | Get one (authenticated) |
+| `PATCH` | `/api/v1/therapists/{id}` | Update (**admin**) |
+| `DELETE` | `/api/v1/therapists/{id}` | Soft-deactivate (**admin**) |
+| `GET` | `/api/v1/therapists/{id}/overrides` | List day overrides (**admin**) |
+| `PUT` | `/api/v1/therapists/{id}/overrides` | Upsert day off / custom hours (**admin**) |
+| `DELETE` | `/api/v1/therapists/{id}/overrides/{override_id}` | Remove override (**admin**) |
 
-Roles: `admin` (full access), `staff` (restricted on billing/therapists — enforced as those modules land).
+### Packages API
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/v1/packages` | List packages (`active_only`, default true) |
+
+### Patients API (admin + staff)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/v1/patients` | List (`q`, `therapist_id`, `status`) |
+| `POST` | `/api/v1/patients` | Create |
+| `GET` | `/api/v1/patients/{id}` | Detail + session history + billing history |
+| `PATCH` | `/api/v1/patients/{id}` | Update |
+| `DELETE` | `/api/v1/patients/{id}` | Hard delete (blocked if invoices exist) |
+
+Roles: `admin` (full access), `staff` (patients/schedule; therapists management admin-only; billing read-only when billing lands).
 
 Seed users (after migrate):
 
