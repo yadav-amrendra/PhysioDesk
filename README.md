@@ -16,8 +16,11 @@ Clinic management tool for a physiotherapy practice — FastAPI backend, Next.js
 PhysioDesk/
 ├── client/          # Next.js frontend
 ├── server/          # FastAPI backend
+├── docs/            # Schema ERD and notes
 └── docker-compose.yml
 ```
+
+Database ERD: [docs/erd.md](docs/erd.md)
 
 ## Prerequisites
 
@@ -148,6 +151,18 @@ uv run python scripts/seed_users.py
 | `staff@physiodesk.com` | `Staff123!` | staff |
 
 Passwords are hashed with **Argon2** (`pwdlib`). `/` and `/api/v1/health` stay public for ops; other routes will require auth as they are added.
+
+The seed script also creates packages, therapists, patients, appointments, invoices, and sample activity logs when the domain tables are empty.
+
+## Assumptions
+
+- **Therapists are not login users** — only `users` (admin/staff) authenticate.
+- **Session history** on a patient profile comes from **appointments** (no separate clinical sessions table).
+- **`activity_logs`** is an append-only who-did-what audit trail (not clinical notes).
+- **Deleting a therapist** soft-deactivates (`is_active=false`); existing appointments stay.
+- **Booking an appointment does not auto-create an invoice** — invoices are created via Billing; optional `appointment_id` link.
+- **Staff:** full access to patients/schedule; read-only billing; no therapist management (enforced as those APIs land).
+- **Net invoice amount** = `amount - discount` (computed, not stored).
 
 ## Frontend structure
 
