@@ -40,9 +40,9 @@ export function PasswordInput({
           tabIndex={-1}
         >
           {visible ? (
-            <EyeOff className="h-4 w-4" aria-hidden />
+            <EyeOff className="h-4 w-4 shrink-0" aria-hidden />
           ) : (
-            <Eye className="h-4 w-4" aria-hidden />
+            <Eye className="h-4 w-4 shrink-0" aria-hidden />
           )}
         </button>
       </div>

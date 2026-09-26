@@ -89,6 +89,18 @@ export function apiPost<T>(path: string, body: unknown, auth = false): Promise<T
   return apiRequest<T>(path, { method: "POST", body, auth });
 }
 
+export function apiPatch<T>(path: string, body: unknown, auth = false): Promise<T> {
+  return apiRequest<T>(path, { method: "PATCH", body, auth });
+}
+
+export function apiPut<T>(path: string, body: unknown, auth = false): Promise<T> {
+  return apiRequest<T>(path, { method: "PUT", body, auth });
+}
+
+export function apiDelete(path: string, auth = false): Promise<void> {
+  return apiRequest<void>(path, { method: "DELETE", auth });
+}
+
 export type HealthResponse = {
   status: string;
   database?: string;
@@ -110,4 +122,43 @@ export type User = {
   full_name: string;
   role: UserRole;
   is_active: boolean;
+};
+
+export type Therapist = {
+  id: number;
+  full_name: string;
+  specialty: string;
+  working_days: number[];
+  default_start_time: string;
+  default_end_time: string;
+  slot_duration_minutes: number;
+  is_active: boolean;
+  weekly_hours: string | number;
+  patients_seen_today: number;
+};
+
+export type TherapistPayload = {
+  full_name: string;
+  specialty: string;
+  working_days: number[];
+  default_start_time: string;
+  default_end_time: string;
+  slot_duration_minutes: number;
+  is_active?: boolean;
+};
+
+export type DayOverride = {
+  id: number;
+  therapist_id: number;
+  override_date: string;
+  is_day_off: boolean;
+  start_time: string | null;
+  end_time: string | null;
+};
+
+export type DayOverridePayload = {
+  override_date: string;
+  is_day_off: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
 };

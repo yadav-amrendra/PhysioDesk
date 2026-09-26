@@ -136,6 +136,19 @@ uv run alembic upgrade head
 | `POST` | `/api/v1/auth/refresh` | No | Refresh token → new token pair |
 | `GET` | `/api/v1/auth/me` | Bearer | Current user profile |
 
+### Therapists API (admin only)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/v1/therapists` | Roster list (`q`, `include_inactive`); includes weekly hours + patients seen today |
+| `POST` | `/api/v1/therapists` | Create therapist |
+| `GET` | `/api/v1/therapists/{id}` | Get one |
+| `PATCH` | `/api/v1/therapists/{id}` | Update |
+| `DELETE` | `/api/v1/therapists/{id}` | Soft-deactivate (`is_active=false`; appointments kept) |
+| `GET` | `/api/v1/therapists/{id}/overrides` | List day overrides |
+| `PUT` | `/api/v1/therapists/{id}/overrides` | Upsert day off / custom hours for a date |
+| `DELETE` | `/api/v1/therapists/{id}/overrides/{override_id}` | Remove override |
+
 Roles: `admin` (full access), `staff` (restricted on billing/therapists — enforced as those modules land).
 
 Seed users (after migrate):
