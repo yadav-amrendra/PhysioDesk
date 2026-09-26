@@ -153,11 +153,12 @@ Covers schedule slot generation and double-booking → HTTP 409.
 ## Features
 
 - **Auth** — email/password, Argon2 hashes, JWT access + rotated refresh tokens, logout / logout-everywhere
-- **Dashboard** — patients today, therapists on duty, revenue today, open slots, capacity bars, recent patients
+- **Dashboard** — patients today, therapists on duty, revenue today, open slots, capacity bars, recent patients, recent activity
 - **Patients** — CRUD, search/filter, profile with sessions + billing history
-- **Schedule** — custom therapist × time grid (not a calendar library), book / reschedule / cancel, conflict warning UX
+- **Schedule** — month / week / day calendar, filters (therapist, patient, status), click-to-book, conflict warning UX
 - **Billing** — invoice CRUD (staff read-only), printable invoice, Paid/Due
 - **Therapists** — admin CRUD, weekly hours, day overrides (day off / custom hours), soft-deactivate
+- **Activity** — paginated audit trail of clinic actions (who did what)
 
 Extras: list pagination, Docker Compose full stack, schedule unit/API tests.
 
@@ -172,9 +173,10 @@ Full interactive docs: **http://127.0.0.1:8000/docs**
 | Auth | `/api/v1/auth` | login, refresh, logout, logout-all, me |
 | Therapists | `/api/v1/therapists` | writes admin-only; list paginated |
 | Patients | `/api/v1/patients` | paginated list |
-| Schedule | `/api/v1/schedule`, `/api/v1/appointments` | day grid + booking |
+| Schedule | `/api/v1/schedule`, `/api/v1/appointments` | month/week range list + day grid + booking |
 | Billing | `/api/v1/invoices` | writes admin-only; list paginated |
-| Dashboard | `/api/v1/dashboard` | live aggregates |
+| Dashboard | `/api/v1/dashboard` | live aggregates + recent activity |
+| Activity | `/api/v1/activity` | paginated audit log |
 | Packages | `/api/v1/packages` | lookup for enrollment / invoices |
 
 List endpoints that support pagination return:
@@ -209,13 +211,13 @@ PhysioDesk/
 
 - Therapists are **not** login users — only `users` (admin/staff) authenticate.
 - Patient “session history” is derived from **appointments** (no separate clinical sessions table).
-- `activity_logs` is an append-only audit trail (who did what), not clinical notes.
+- `activity_logs` is an append-only audit trail (who did what), not clinical notes. Shown on **Activity** and as a recent strip on the Dashboard.
 - Deleting a therapist **soft-deactivates** (`is_active=false`); existing appointments remain.
 - Booking an appointment does **not** auto-create an invoice; invoices are created in Billing (optional `appointment_id`).
 - Staff: full patients/schedule; billing read-only; no therapist management (API-enforced).
 - Invoice `net_amount` = `amount - discount` (computed).
 - Refresh tokens are stored hashed; each refresh **rotates** the token. Reusing a rotated refresh token revokes all sessions for that user.
-- Schedule grid is custom-built (no FullCalendar) for tighter control of open / booked / off cells.
+- Schedule UI uses month / week / day views. Day view uses a **15-minute dotted timeline**; open/booked blocks span 2 rows for 30-minute slots and 3 rows for 45-minute slots.
 
 ---
 
@@ -225,7 +227,6 @@ PhysioDesk/
 - Stronger frontend test coverage (Playwright smoke for login → book → invoice)
 - Soft-delete / archive for patients and invoices instead of hard delete where safer
 - Email or SMS reminders for upcoming appointments
-- Finer-grained audit UI for `activity_logs`
 - Optimistic concurrency on booking (short-lived slot locks) for multi-reception desks
 
 ---

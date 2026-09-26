@@ -1,6 +1,6 @@
 from datetime import time
 
-from app.services.schedule import generate_slot_starts
+from app.services.schedule import generate_slot_starts, generate_uniform_labels
 
 
 def test_generate_slot_starts_hourly():
@@ -31,3 +31,8 @@ def test_generate_slot_starts_does_not_overflow_end():
         (time(9, 0), time(9, 45)),
         (time(9, 45), time(10, 30)),
     ]
+
+
+def test_generate_uniform_labels_every_15_minutes():
+    labels = generate_uniform_labels(time(9, 0), time(10, 0), 15)
+    assert labels == [time(9, 0), time(9, 15), time(9, 30), time(9, 45)]

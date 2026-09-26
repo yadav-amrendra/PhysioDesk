@@ -4,4 +4,5 @@ export const appNav = [
   { href: "/schedule", label: "Schedule" },
   { href: "/billing", label: "Billing" },
   { href: "/therapists", label: "Therapists" },
+  { href: "/activity", label: "Activity" },
 ] as const;

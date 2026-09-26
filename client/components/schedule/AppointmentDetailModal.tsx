@@ -24,9 +24,15 @@ function toTimeInput(value: string): string {
 }
 
 function statusTone(status: string): "success" | "neutral" | "danger" {
-  if (status === "booked" || status === "completed") return "success";
+  if (status === "booked") return "success";
+  if (status === "completed") return "neutral";
   if (status === "cancelled" || status === "no_show") return "danger";
   return "neutral";
+}
+
+function statusLabel(status: string): string {
+  if (status === "no_show") return "No show";
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 export function AppointmentDetailModal({
@@ -37,6 +43,7 @@ export function AppointmentDetailModal({
   onClose,
   onReschedule,
   onCancel,
+  onStatusChange,
 }: {
   open: boolean;
   appointment: Appointment | null;
@@ -45,6 +52,7 @@ export function AppointmentDetailModal({
   onClose: () => void;
   onReschedule: (payload: AppointmentUpdatePayload) => Promise<void>;
   onCancel: () => Promise<void>;
+  onStatusChange: (status: "completed" | "no_show") => Promise<void>;
 }) {
   const [mode, setMode] = useState<"view" | "reschedule">("view");
   const [therapistId, setTherapistId] = useState("");
@@ -56,6 +64,10 @@ export function AppointmentDetailModal({
   const [saving, setSaving] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [confirmStatus, setConfirmStatus] = useState<"completed" | "no_show" | null>(
+    null,
+  );
   const [conflict, setConflict] = useState<SlotConflict | null>(null);
   const [checking, setChecking] = useState(false);
   const [confirmConflict, setConfirmConflict] = useState(false);
@@ -67,6 +79,7 @@ export function AppointmentDetailModal({
     setMode("view");
     setError(null);
     setConfirmCancel(false);
+    setConfirmStatus(null);
     setConfirmConflict(false);
     setPendingPayload(null);
     setConflict(null);
@@ -159,7 +172,25 @@ export function AppointmentDetailModal({
     }
   }
 
+  async function handleStatusConfirm() {
+    if (!confirmStatus) return;
+    setStatusBusy(true);
+    setError(null);
+    try {
+      await onStatusChange(confirmStatus);
+      setConfirmStatus(null);
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update status");
+      setConfirmStatus(null);
+    } finally {
+      setStatusBusy(false);
+    }
+  }
+
   if (!appointment) return null;
+
+  const canUpdateOutcome = appointment.status === "booked";
 
   return (
     <>
@@ -194,7 +225,7 @@ export function AppointmentDetailModal({
                 </dt>
                 <dd className="mt-1">
                   <StatusPill tone={statusTone(appointment.status)}>
-                    {appointment.status}
+                    {statusLabel(appointment.status)}
                   </StatusPill>
                 </dd>
               </div>
@@ -214,18 +245,50 @@ export function AppointmentDetailModal({
               ) : null}
             </dl>
 
+            {error ? (
+              <p className="rounded-[10px] bg-status-danger-soft px-3 py-2 text-sm text-status-danger">
+                {error}
+              </p>
+            ) : null}
+
             {appointment.status !== "cancelled" ? (
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="danger"
-                  onClick={() => setConfirmCancel(true)}
-                >
-                  Cancel appointment
-                </Button>
-                <Button type="button" onClick={() => setMode("reschedule")}>
-                  Reschedule
-                </Button>
+              <div className="flex flex-col gap-2">
+                {canUpdateOutcome ? (
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={statusBusy}
+                      onClick={() => setConfirmStatus("completed")}
+                    >
+                      Mark completed
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled={statusBusy}
+                      onClick={() => setConfirmStatus("no_show")}
+                    >
+                      Mark no show
+                    </Button>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap justify-end gap-2">
+                  {canUpdateOutcome ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        onClick={() => setConfirmCancel(true)}
+                      >
+                        Cancel appointment
+                      </Button>
+                      <Button type="button" onClick={() => setMode("reschedule")}>
+                        Reschedule
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
               </div>
             ) : null}
           </div>
@@ -320,6 +383,31 @@ export function AppointmentDetailModal({
           if (!cancelBusy) setConfirmCancel(false);
         }}
         onConfirm={handleCancelConfirm}
+      />
+
+      <ConfirmDialog
+        open={confirmStatus !== null}
+        title={
+          confirmStatus === "completed"
+            ? "Mark as completed?"
+            : "Mark as no show?"
+        }
+        description={
+          appointment && confirmStatus === "completed"
+            ? `Confirm that ${appointment.patient_name} attended this session.`
+            : appointment
+              ? `Record that ${appointment.patient_name} did not attend this appointment.`
+              : ""
+        }
+        confirmLabel={
+          confirmStatus === "completed" ? "Mark completed" : "Mark no show"
+        }
+        tone={confirmStatus === "no_show" ? "danger" : "primary"}
+        busy={statusBusy}
+        onClose={() => {
+          if (!statusBusy) setConfirmStatus(null);
+        }}
+        onConfirm={handleStatusConfirm}
       />
 
       <ConfirmDialog

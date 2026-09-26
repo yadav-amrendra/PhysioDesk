@@ -6,7 +6,7 @@ import { AppTopBar } from "@/components/layout/AppTopBar";
 import { Button } from "@/components/ui/Button";
 import { Card, CardTitle } from "@/components/ui/Card";
 import { StatusPill } from "@/components/ui/StatusPill";
-import { ApiError, apiGet, type PatientStatus } from "@/lib/api";
+import { ApiError, apiGet, type ActivityLog, type PatientStatus } from "@/lib/api";
 import { cn } from "@/lib/cn";
 
 type DashboardStats = {
@@ -40,6 +40,7 @@ type DashboardData = {
   stats: DashboardStats;
   capacity: CapacityItem[];
   recent_patients: RecentPatient[];
+  recent_activity: ActivityLog[];
 };
 
 function statusLabel(status: PatientStatus): string {
@@ -49,6 +50,47 @@ function statusLabel(status: PatientStatus): string {
 
 function statusTone(status: PatientStatus): "success" | "neutral" {
   return status === "active" ? "success" : "neutral";
+}
+
+function formatAction(action: string): string {
+  return action
+    .split(".")
+    .map((part) => part.replace(/_/g, " "))
+    .join(" · ");
+}
+
+function formatWhen(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function activityTone(
+  action: string,
+): "success" | "danger" | "neutral" | "primary" {
+  if (
+    action.includes("deleted") ||
+    action.includes("cancelled") ||
+    action.includes("deactivated")
+  ) {
+    return "danger";
+  }
+  if (
+    action.includes("created") ||
+    action.includes("booked") ||
+    action.includes("paid")
+  ) {
+    return "success";
+  }
+  if (action.includes("updated") || action.includes("completed")) {
+    return "primary";
+  }
+  return "neutral";
 }
 
 export function DashboardPageClient() {
@@ -215,6 +257,54 @@ export function DashboardPageClient() {
                         {statusLabel(p.status)}
                       </StatusPill>
                     </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+        </section>
+
+        <section>
+          <Card className="overflow-hidden p-0">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+              <CardTitle>Recent activity</CardTitle>
+              <Link
+                href="/activity"
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                View all
+              </Link>
+            </div>
+            {loading ? (
+              <p className="px-5 py-6 text-sm text-text-secondary">Loading…</p>
+            ) : !(data?.recent_activity?.length) ? (
+              <p className="px-5 py-6 text-sm text-text-secondary">
+                No activity logged yet.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {data.recent_activity.map((row) => (
+                  <li
+                    key={row.id}
+                    className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-start sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <StatusPill tone={activityTone(row.action)}>
+                          {formatAction(row.action)}
+                        </StatusPill>
+                        <span className="font-mono text-[11px] text-text-secondary">
+                          {formatWhen(row.created_at)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-text-primary">{row.summary}</p>
+                      <p className="mt-0.5 text-xs text-text-secondary">
+                        {row.actor_name ?? "System"}
+                        {" · "}
+                        {row.entity_type}
+                        {row.entity_id != null ? ` #${row.entity_id}` : ""}
+                      </p>
+                    </div>
                   </li>
                 ))}
               </ul>

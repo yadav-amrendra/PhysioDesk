@@ -28,6 +28,12 @@ class ScheduleError(HTTPException):
         super().__init__(status_code=status_code, detail=detail)
 
 
+# Day board draws a fixed 15-minute axis; open/booked blocks span multiple rows
+# by their real duration (30 → 2 rows, 45 → 3 rows).
+GRID_STEP_MINUTES = 15
+CLINIC_SLOT_MINUTES = 30  # default therapist slot length in seed data
+
+
 def _iso_weekday(d: date) -> int:
     """Monday=1 … Sunday=7."""
     return d.isoweekday()
@@ -74,6 +80,27 @@ def generate_slot_starts(start: time, end: time, duration_minutes: int) -> list[
     return slots
 
 
+def _time_to_minutes(value: time) -> int:
+    return value.hour * 60 + value.minute
+
+
+def _minutes_to_time(value: int) -> time:
+    return time(value // 60, value % 60)
+
+
+def generate_uniform_labels(start: time, end: time, step_minutes: int = 15) -> list[time]:
+    """Even time axis for the day grid (independent of each therapist's slot length)."""
+    if step_minutes <= 0 or end <= start:
+        return []
+    labels: list[time] = []
+    cursor = _time_to_minutes(start)
+    end_m = _time_to_minutes(end)
+    while cursor < end_m:
+        labels.append(_minutes_to_time(cursor))
+        cursor += step_minutes
+    return labels
+
+
 def _active_appointment_statuses() -> list[AppointmentStatus]:
     return [AppointmentStatus.BOOKED, AppointmentStatus.COMPLETED, AppointmentStatus.NO_SHOW]
 
@@ -106,18 +133,82 @@ def _to_appointment_response(
     )
 
 
-def get_day_schedule(session: Session, on_date: date) -> ScheduleDayResponse:
-    therapists = session.exec(
+def list_appointments(
+    session: Session,
+    *,
+    date_from: date,
+    date_to: date,
+    therapist_id: int | None = None,
+    patient_id: int | None = None,
+    status_filter: AppointmentStatus | None = None,
+) -> list[AppointmentResponse]:
+    if date_to < date_from:
+        raise ScheduleError("date_to must be on or after date_from")
+
+    statement = (
+        select(Appointment)
+        .where(Appointment.appointment_date >= date_from)
+        .where(Appointment.appointment_date <= date_to)
+    )
+    if therapist_id is not None:
+        statement = statement.where(Appointment.therapist_id == therapist_id)
+    if patient_id is not None:
+        statement = statement.where(Appointment.patient_id == patient_id)
+    if status_filter is not None:
+        statement = statement.where(Appointment.status == status_filter)
+
+    statement = statement.order_by(
+        col(Appointment.appointment_date),
+        col(Appointment.start_time),
+    )
+    appointments = list(session.exec(statement).all())
+
+    patient_ids = {a.patient_id for a in appointments}
+    therapist_ids = {a.therapist_id for a in appointments}
+    patients = {
+        p.id: p.full_name
+        for p in session.exec(select(Patient).where(col(Patient.id).in_(patient_ids))).all()
+        if p.id is not None
+    } if patient_ids else {}
+    therapists = {
+        t.id: t.full_name
+        for t in session.exec(select(Therapist).where(col(Therapist.id).in_(therapist_ids))).all()
+        if t.id is not None
+    } if therapist_ids else {}
+
+    return [
+        _to_appointment_response(
+            session,
+            a,
+            patient_name=patients.get(a.patient_id, "—"),
+            therapist_name=therapists.get(a.therapist_id, "—"),
+        )
+        for a in appointments
+    ]
+
+
+def get_day_schedule(
+    session: Session,
+    on_date: date,
+    *,
+    therapist_id: int | None = None,
+) -> ScheduleDayResponse:
+    statement = (
         select(Therapist)
         .where(Therapist.is_active == True)  # noqa: E712
         .order_by(Therapist.full_name)
-    ).all()
+    )
+    if therapist_id is not None:
+        statement = statement.where(Therapist.id == therapist_id)
+    therapists = list(session.exec(statement).all())
 
     appointments = session.exec(
         select(Appointment)
         .where(Appointment.appointment_date == on_date)
         .where(col(Appointment.status).in_(_active_appointment_statuses()))
     ).all()
+    if therapist_id is not None:
+        appointments = [a for a in appointments if a.therapist_id == therapist_id]
 
     patient_ids = {a.patient_id for a in appointments}
     patients = {
@@ -130,33 +221,75 @@ def get_day_schedule(session: Session, on_date: date) -> ScheduleDayResponse:
     for a in appointments:
         by_therapist.setdefault(a.therapist_id, {})[a.start_time] = a
 
-    columns: list[ScheduleTherapistColumn] = []
-    all_labels: set[time] = set()
-
+    windows: dict[int, tuple[bool, time | None, time | None]] = {}
+    working: list[Therapist] = []
+    earliest: time | None = None
+    latest: time | None = None
     for therapist in therapists:
         assert therapist.id is not None
         is_off, win_start, win_end = resolve_day_window(session, therapist, on_date)
+        windows[therapist.id] = (is_off, win_start, win_end)
+        if not is_off and win_start is not None and win_end is not None:
+            working.append(therapist)
+            if earliest is None or win_start < earliest:
+                earliest = win_start
+            if latest is None or win_end > latest:
+                latest = win_end
+
+    if earliest is None or latest is None:
+        for a in appointments:
+            if earliest is None or a.start_time < earliest:
+                earliest = a.start_time
+            if latest is None or a.end_time > latest:
+                latest = a.end_time
+
+    # Fixed 15-minute axis for every day board. Slot blocks span N rows by duration.
+    step_minutes = GRID_STEP_MINUTES
+    if len(working) == 1:
+        earliest = windows[working[0].id][1] or earliest
+        latest = windows[working[0].id][2] or latest
+
+    labels = (
+        generate_uniform_labels(earliest, latest, step_minutes)
+        if earliest is not None and latest is not None
+        else []
+    )
+    label_set = set(labels)
+
+    columns: list[ScheduleTherapistColumn] = []
+    for therapist in therapists:
+        assert therapist.id is not None
+        is_off, win_start, win_end = windows[therapist.id]
         duration = therapist.slot_duration_minutes
+        booked_map = by_therapist.get(therapist.id, {})
         slots: list[ScheduleSlot] = []
 
         if is_off or win_start is None or win_end is None:
-            # Still show booked appointments if any (edge case)
-            booked_map = by_therapist.get(therapist.id, {})
-            for start_t, appt in sorted(booked_map.items(), key=lambda x: x[0]):
-                all_labels.add(start_t)
-                slots.append(
-                    ScheduleSlot(
-                        start_time=appt.start_time,
-                        end_time=appt.end_time,
-                        state="booked",
-                        appointment=_to_appointment_response(
-                            session,
-                            appt,
-                            patient_name=patients.get(appt.patient_id, "—"),
-                            therapist_name=therapist.full_name,
-                        ),
+            for label in labels:
+                appt = booked_map.get(label)
+                if appt is not None:
+                    slots.append(
+                        ScheduleSlot(
+                            start_time=appt.start_time,
+                            end_time=appt.end_time,
+                            state="booked",
+                            appointment=_to_appointment_response(
+                                session,
+                                appt,
+                                patient_name=patients.get(appt.patient_id, "—"),
+                                therapist_name=therapist.full_name,
+                            ),
+                        )
                     )
-                )
+                else:
+                    slots.append(
+                        ScheduleSlot(
+                            start_time=label,
+                            end_time=label,
+                            state="off",
+                            appointment=None,
+                        )
+                    )
             columns.append(
                 ScheduleTherapistColumn(
                     id=therapist.id,
@@ -171,12 +304,13 @@ def get_day_schedule(session: Session, on_date: date) -> ScheduleDayResponse:
             )
             continue
 
-        generated = generate_slot_starts(win_start, win_end, duration)
-        booked_map = by_therapist.get(therapist.id, {})
+        valid_starts = {
+            start_t: end_t
+            for start_t, end_t in generate_slot_starts(win_start, win_end, duration)
+        }
 
-        for start_t, end_t in generated:
-            all_labels.add(start_t)
-            appt = booked_map.get(start_t)
+        for label in labels:
+            appt = booked_map.get(label)
             if appt is not None:
                 slots.append(
                     ScheduleSlot(
@@ -191,35 +325,46 @@ def get_day_schedule(session: Session, on_date: date) -> ScheduleDayResponse:
                         ),
                     )
                 )
-            else:
+            elif label in valid_starts:
                 slots.append(
                     ScheduleSlot(
-                        start_time=start_t,
-                        end_time=end_t,
+                        start_time=label,
+                        end_time=valid_starts[label],
                         state="open",
                         appointment=None,
                     )
                 )
-
-        # Booked slots not on the generated grid (legacy / mismatch)
-        for start_t, appt in booked_map.items():
-            if not any(s.start_time == start_t for s in slots):
-                all_labels.add(start_t)
+            else:
                 slots.append(
                     ScheduleSlot(
-                        start_time=appt.start_time,
-                        end_time=appt.end_time,
-                        state="booked",
-                        appointment=_to_appointment_response(
-                            session,
-                            appt,
-                            patient_name=patients.get(appt.patient_id, "—"),
-                            therapist_name=therapist.full_name,
-                        ),
+                        start_time=label,
+                        end_time=label,
+                        state="off",
+                        appointment=None,
                     )
                 )
-                slots.sort(key=lambda s: s.start_time)
 
+        # Bookings that do not land on the uniform axis
+        for start_t, appt in booked_map.items():
+            if start_t in label_set:
+                continue
+            labels.append(start_t)
+            label_set.add(start_t)
+            slots.append(
+                ScheduleSlot(
+                    start_time=appt.start_time,
+                    end_time=appt.end_time,
+                    state="booked",
+                    appointment=_to_appointment_response(
+                        session,
+                        appt,
+                        patient_name=patients.get(appt.patient_id, "—"),
+                        therapist_name=therapist.full_name,
+                    ),
+                )
+            )
+
+        slots.sort(key=lambda s: s.start_time)
         columns.append(
             ScheduleTherapistColumn(
                 id=therapist.id,
@@ -233,8 +378,41 @@ def get_day_schedule(session: Session, on_date: date) -> ScheduleDayResponse:
             )
         )
 
-    labels = sorted(all_labels)
-    return ScheduleDayResponse(date=on_date, time_labels=labels, therapists=columns)
+    labels = sorted(label_set)
+
+    # Ensure every column has a slot row for every label
+    rebuilt: list[ScheduleTherapistColumn] = []
+    for column in columns:
+        by_start = {s.start_time: s for s in column.slots}
+        rebuilt_slots = []
+        for label in labels:
+            existing = by_start.get(label)
+            if existing is not None:
+                rebuilt_slots.append(existing)
+            else:
+                rebuilt_slots.append(
+                    ScheduleSlot(
+                        start_time=label,
+                        end_time=label,
+                        state="off",
+                        appointment=None,
+                    )
+                )
+        rebuilt.append(
+            ScheduleTherapistColumn(
+                id=column.id,
+                full_name=column.full_name,
+                specialty=column.specialty,
+                is_day_off=column.is_day_off,
+                start_time=column.start_time,
+                end_time=column.end_time,
+                slot_duration_minutes=column.slot_duration_minutes,
+                slots=rebuilt_slots,
+            )
+        )
+
+    return ScheduleDayResponse(date=on_date, time_labels=labels, therapists=rebuilt)
+
 
 
 def _assert_slot_available(

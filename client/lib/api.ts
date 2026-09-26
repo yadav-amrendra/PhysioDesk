@@ -378,6 +378,18 @@ export type ScheduleDay = {
   therapists: ScheduleTherapistColumn[];
 };
 
+export type ActivityLog = {
+  id: number;
+  actor_user_id: number | null;
+  actor_name: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: number | null;
+  summary: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export type AppointmentCreatePayload = {
   patient_id: number;
   therapist_id: number;

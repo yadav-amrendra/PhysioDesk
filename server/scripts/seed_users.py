@@ -84,9 +84,9 @@ THERAPISTS = [
         "full_name": "Priya Nair",
         "specialty": "Neurological rehab",
         "working_days": "1,2,3,4,6",
-        "default_start_time": time(8, 30),
-        "default_end_time": time(14, 30),
-        "slot_duration_minutes": 45,
+        "default_start_time": time(8, 0),
+        "default_end_time": time(14, 0),
+        "slot_duration_minutes": 30,
     },
     {
         "full_name": "Vikram Joshi",
@@ -116,16 +116,16 @@ THERAPISTS = [
         "full_name": "Dr. Kabita Shrestha",
         "specialty": "Women's health physio",
         "working_days": "1,2,3,4,5",
-        "default_start_time": time(9, 30),
-        "default_end_time": time(16, 30),
+        "default_start_time": time(9, 0),
+        "default_end_time": time(16, 0),
         "slot_duration_minutes": 30,
     },
     {
         "full_name": "Hari Bahadur",
         "specialty": "Cardiopulmonary rehab",
         "working_days": "2,4,5,6",
-        "default_start_time": time(7, 30),
-        "default_end_time": time(13, 30),
+        "default_start_time": time(8, 0),
+        "default_end_time": time(13, 0),
         "slot_duration_minutes": 30,
     },
 ]
@@ -182,20 +182,41 @@ def _seed_packages(session: Session) -> list[Package]:
 
 
 def _seed_therapists(session: Session, today: date) -> list[Therapist]:
-    """Create any missing therapists from THERAPISTS (safe to re-run)."""
+    """Create any missing therapists from THERAPISTS (safe to re-run).
+
+    Also syncs schedule fields for existing seed therapists so clinic slot length
+    stays consistent (30 minutes by default).
+    """
     existing = list(session.exec(select(Therapist)).all())
     by_name = {t.full_name: t for t in existing}
     created = 0
+    updated = 0
 
     for item in THERAPISTS:
-        if item["full_name"] in by_name:
+        current = by_name.get(item["full_name"])
+        if current is None:
+            t = Therapist(**item, is_active=True)
+            session.add(t)
+            session.flush()
+            by_name[t.full_name] = t
+            created += 1
+            print(f"created therapist: {t.full_name}")
             continue
-        t = Therapist(**item, is_active=True)
-        session.add(t)
-        session.flush()
-        by_name[t.full_name] = t
-        created += 1
-        print(f"created therapist: {t.full_name}")
+
+        changed = False
+        for field in (
+            "specialty",
+            "working_days",
+            "default_start_time",
+            "default_end_time",
+            "slot_duration_minutes",
+        ):
+            if getattr(current, field) != item[field]:
+                setattr(current, field, item[field])
+                changed = True
+        if changed:
+            session.add(current)
+            updated += 1
 
     therapists = [by_name[item["full_name"]] for item in THERAPISTS if item["full_name"] in by_name]
 
@@ -221,10 +242,10 @@ def _seed_therapists(session: Session, today: date) -> list[Therapist]:
             )
         print("created day overrides: 2")
 
-    if created == 0:
+    if created == 0 and updated == 0:
         print(f"skip therapists (already have {len(existing)})")
     else:
-        print(f"therapists total: {len(by_name)} (+{created} new)")
+        print(f"therapists total: {len(by_name)} (+{created} new, ~{updated} updated)")
 
     return list(session.exec(select(Therapist).order_by(Therapist.full_name)).all())
 

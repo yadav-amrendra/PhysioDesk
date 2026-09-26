@@ -17,6 +17,7 @@ from app.schemas.dashboard import (
     RecentPatientItem,
     TherapistCapacityItem,
 )
+from app.services.activity import recent_activity_logs
 from app.services.schedule import (
     generate_slot_starts,
     get_day_schedule,
@@ -165,4 +166,5 @@ def get_dashboard(session: Session, on_date: date | None = None) -> DashboardRes
         ),
         capacity=capacity,
         recent_patients=recent_patients,
+        recent_activity=recent_activity_logs(session, limit=8),
     )

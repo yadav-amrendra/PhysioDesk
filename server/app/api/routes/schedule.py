@@ -3,6 +3,7 @@ from datetime import date
 from fastapi import APIRouter, Query, status
 
 from app.api.deps import CurrentUser, SessionDep
+from app.models.enums import AppointmentStatus
 from app.schemas.schedule import (
     AppointmentCreate,
     AppointmentResponse,
@@ -19,8 +20,31 @@ def get_schedule_day(
     session: SessionDep,
     _user: CurrentUser,
     on_date: date = Query(..., alias="date"),
+    therapist_id: int | None = Query(default=None),
 ) -> ScheduleDayResponse:
-    return schedule_service.get_day_schedule(session, on_date)
+    return schedule_service.get_day_schedule(
+        session, on_date, therapist_id=therapist_id
+    )
+
+
+@router.get("/appointments", response_model=list[AppointmentResponse])
+def list_appointments(
+    session: SessionDep,
+    _user: CurrentUser,
+    date_from: date = Query(..., alias="from"),
+    date_to: date = Query(..., alias="to"),
+    therapist_id: int | None = Query(default=None),
+    patient_id: int | None = Query(default=None),
+    status_filter: AppointmentStatus | None = Query(default=None, alias="status"),
+) -> list[AppointmentResponse]:
+    return schedule_service.list_appointments(
+        session,
+        date_from=date_from,
+        date_to=date_to,
+        therapist_id=therapist_id,
+        patient_id=patient_id,
+        status_filter=status_filter,
+    )
 
 
 @router.post(

@@ -4,6 +4,7 @@ from decimal import Decimal
 from pydantic import BaseModel
 
 from app.models.enums import PatientStatus
+from app.schemas.activity import ActivityLogResponse
 
 
 class DashboardStats(BaseModel):
@@ -37,3 +38,4 @@ class DashboardResponse(BaseModel):
     stats: DashboardStats
     capacity: list[TherapistCapacityItem]
     recent_patients: list[RecentPatientItem]
+    recent_activity: list[ActivityLogResponse] = []
