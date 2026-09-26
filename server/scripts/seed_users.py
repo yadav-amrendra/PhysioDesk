@@ -96,6 +96,38 @@ THERAPISTS = [
         "default_end_time": time(16, 0),
         "slot_duration_minutes": 30,
     },
+    {
+        "full_name": "Sneha Karki",
+        "specialty": "Geriatric physio",
+        "working_days": "1,2,3,4,5,6",
+        "default_start_time": time(8, 0),
+        "default_end_time": time(14, 0),
+        "slot_duration_minutes": 30,
+    },
+    {
+        "full_name": "Amit Poudel",
+        "specialty": "Manual therapy",
+        "working_days": "1,3,5,6",
+        "default_start_time": time(11, 0),
+        "default_end_time": time(19, 0),
+        "slot_duration_minutes": 45,
+    },
+    {
+        "full_name": "Dr. Kabita Shrestha",
+        "specialty": "Women's health physio",
+        "working_days": "1,2,3,4,5",
+        "default_start_time": time(9, 30),
+        "default_end_time": time(16, 30),
+        "slot_duration_minutes": 30,
+    },
+    {
+        "full_name": "Hari Bahadur",
+        "specialty": "Cardiopulmonary rehab",
+        "working_days": "2,4,5,6",
+        "default_start_time": time(7, 30),
+        "default_end_time": time(13, 30),
+        "slot_duration_minutes": 30,
+    },
 ]
 
 PATIENTS = [
@@ -150,37 +182,51 @@ def _seed_packages(session: Session) -> list[Package]:
 
 
 def _seed_therapists(session: Session, today: date) -> list[Therapist]:
-    if session.exec(select(Therapist)).first():
-        print("skip therapists (already seeded)")
-        return list(session.exec(select(Therapist)).all())
+    """Create any missing therapists from THERAPISTS (safe to re-run)."""
+    existing = list(session.exec(select(Therapist)).all())
+    by_name = {t.full_name: t for t in existing}
+    created = 0
 
-    therapists: list[Therapist] = []
     for item in THERAPISTS:
+        if item["full_name"] in by_name:
+            continue
         t = Therapist(**item, is_active=True)
         session.add(t)
-        therapists.append(t)
-    session.flush()
+        session.flush()
+        by_name[t.full_name] = t
+        created += 1
+        print(f"created therapist: {t.full_name}")
 
-    # One day-off override for demo (first therapist, tomorrow)
-    session.add(
-        TherapistDayOverride(
-            therapist_id=therapists[0].id,
-            override_date=today + timedelta(days=1),
-            is_day_off=True,
+    therapists = [by_name[item["full_name"]] for item in THERAPISTS if item["full_name"] in by_name]
+
+    # Seed demo overrides only when we first created the base set (no overrides yet)
+    has_override = session.exec(select(TherapistDayOverride)).first()
+    if not has_override and therapists:
+        session.add(
+            TherapistDayOverride(
+                therapist_id=therapists[0].id,
+                override_date=today + timedelta(days=1),
+                is_day_off=True,
+            )
         )
-    )
-    # Custom hours for second therapist today
-    session.add(
-        TherapistDayOverride(
-            therapist_id=therapists[1].id,
-            override_date=today,
-            is_day_off=False,
-            start_time=time(11, 0),
-            end_time=time(15, 0),
-        )
-    )
-    print(f"created therapists: {len(therapists)} (+2 day overrides)")
-    return therapists
+        if len(therapists) > 1:
+            session.add(
+                TherapistDayOverride(
+                    therapist_id=therapists[1].id,
+                    override_date=today,
+                    is_day_off=False,
+                    start_time=time(11, 0),
+                    end_time=time(15, 0),
+                )
+            )
+        print("created day overrides: 2")
+
+    if created == 0:
+        print(f"skip therapists (already have {len(existing)})")
+    else:
+        print(f"therapists total: {len(by_name)} (+{created} new)")
+
+    return list(session.exec(select(Therapist).order_by(Therapist.full_name)).all())
 
 
 def _seed_patients(

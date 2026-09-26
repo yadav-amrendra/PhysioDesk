@@ -165,7 +165,27 @@ uv run alembic upgrade head
 | `PATCH` | `/api/v1/patients/{id}` | Update |
 | `DELETE` | `/api/v1/patients/{id}` | Hard delete (blocked if invoices exist) |
 
-Roles: `admin` (full access), `staff` (patients/schedule; therapists management admin-only; billing read-only when billing lands).
+### Schedule API (admin + staff)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/v1/schedule/day?date=YYYY-MM-DD` | Day grid: therapists × slots (`open` / `booked` / off) |
+| `POST` | `/api/v1/appointments` | Book (validates availability; no double-book) |
+| `GET` | `/api/v1/appointments/{id}` | Appointment detail |
+| `PATCH` | `/api/v1/appointments/{id}` | Reschedule / edit notes / status |
+| `POST` | `/api/v1/appointments/{id}/cancel` | Cancel (frees the slot) |
+
+### Billing API
+
+| Method | Path | Auth | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/v1/invoices` | Any user | List (`status`, `patient_id`, `q`) |
+| `GET` | `/api/v1/invoices/{id}` | Any user | Detail |
+| `POST` | `/api/v1/invoices` | **Admin** | Create bill |
+| `PATCH` | `/api/v1/invoices/{id}` | **Admin** | Update / mark paid |
+| `DELETE` | `/api/v1/invoices/{id}` | **Admin** | Void/delete |
+
+Roles: `admin` (full access), `staff` (patients/schedule; **billing read-only**; therapists management admin-only).
 
 Seed users (after migrate):
 

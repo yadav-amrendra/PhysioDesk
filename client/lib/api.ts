@@ -230,3 +230,105 @@ export type PatientDetail = Patient & {
   sessions: PatientSession[];
   invoices: PatientInvoice[];
 };
+
+export type PaymentMethod = "cash" | "card" | "upi" | "insurance" | "other";
+export type AppointmentStatus = "booked" | "completed" | "cancelled" | "no_show";
+export type InvoiceStatus = "paid" | "due";
+
+export type Invoice = {
+  id: number;
+  invoice_number: string;
+  patient_id: number;
+  patient_name: string;
+  package_id: number;
+  package_name: string;
+  appointment_id: number | null;
+  created_by_user_id: number;
+  amount: string | number;
+  discount: string | number;
+  net_amount: string | number;
+  status: InvoiceStatus;
+  payment_method: PaymentMethod;
+  issued_on: string;
+  paid_at: string | null;
+  notes: string | null;
+};
+
+export type InvoicePayload = {
+  patient_id: number;
+  package_id: number;
+  appointment_id?: number | null;
+  amount?: number | null;
+  discount?: number;
+  status?: InvoiceStatus;
+  payment_method?: PaymentMethod;
+  issued_on?: string | null;
+  notes?: string | null;
+};
+
+export type InvoiceUpdatePayload = {
+  package_id?: number;
+  appointment_id?: number | null;
+  amount?: number;
+  discount?: number;
+  status?: InvoiceStatus;
+  payment_method?: PaymentMethod;
+  issued_on?: string;
+  notes?: string | null;
+};
+
+export type Appointment = {
+  id: number;
+  patient_id: number;
+  patient_name: string;
+  therapist_id: number;
+  therapist_name: string;
+  appointment_date: string;
+  start_time: string;
+  end_time: string;
+  status: AppointmentStatus;
+  payment_method: PaymentMethod;
+  notes: string | null;
+};
+
+export type ScheduleSlot = {
+  start_time: string;
+  end_time: string;
+  state: "open" | "booked" | "off";
+  appointment: Appointment | null;
+};
+
+export type ScheduleTherapistColumn = {
+  id: number;
+  full_name: string;
+  specialty: string;
+  is_day_off: boolean;
+  start_time: string | null;
+  end_time: string | null;
+  slot_duration_minutes: number;
+  slots: ScheduleSlot[];
+};
+
+export type ScheduleDay = {
+  date: string;
+  time_labels: string[];
+  therapists: ScheduleTherapistColumn[];
+};
+
+export type AppointmentCreatePayload = {
+  patient_id: number;
+  therapist_id: number;
+  appointment_date: string;
+  start_time: string;
+  payment_method: PaymentMethod;
+  notes?: string | null;
+};
+
+export type AppointmentUpdatePayload = {
+  therapist_id?: number;
+  appointment_date?: string;
+  start_time?: string;
+  payment_method?: PaymentMethod;
+  notes?: string | null;
+  status?: AppointmentStatus;
+};
