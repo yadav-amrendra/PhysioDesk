@@ -6,6 +6,7 @@ PostgreSQL schema for clinic management: auth users, therapists (with day overri
 erDiagram
   users ||--o{ invoices : "created_by"
   users ||--o{ activity_logs : "performed"
+  users ||--o{ refresh_tokens : "sessions"
   packages ||--o{ patients : "enrolled"
   packages ||--o{ invoices : "billed"
   therapists ||--o{ patients : "assigned"
@@ -24,6 +25,17 @@ erDiagram
     bool is_active
     timestamptz created_at
     timestamptz updated_at
+  }
+
+  refresh_tokens {
+    int id PK
+    int user_id FK
+    string jti UK
+    string token_hash
+    timestamptz expires_at
+    timestamptz revoked_at
+    string replaced_by_jti
+    timestamptz created_at
   }
 
   therapists {

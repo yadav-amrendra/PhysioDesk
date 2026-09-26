@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlmodel import Session, col, select
+from sqlmodel import Session, col, func, or_, select
 
 from app.models.appointment import Appointment
 from app.models.enums import InvoiceStatus
@@ -13,6 +13,7 @@ from app.models.package import Package
 from app.models.patient import Patient
 from app.models.user import User
 from app.schemas.billing import InvoiceCreate, InvoiceResponse, InvoiceUpdate
+from app.schemas.pagination import Page, clamp_pagination, make_page
 from app.services.activity import log_activity
 
 
@@ -82,46 +83,51 @@ def list_invoices(
     status_filter: InvoiceStatus | None = None,
     patient_id: int | None = None,
     q: str | None = None,
-) -> list[InvoiceResponse]:
-    statement = select(Invoice)
+    page: int = 1,
+    page_size: int = 20,
+) -> Page[InvoiceResponse]:
+    page, page_size, offset = clamp_pagination(page, page_size)
+
+    list_stmt = (
+        select(Invoice, Patient.full_name, Package.name)
+        .join(Patient, Invoice.patient_id == Patient.id)
+        .join(Package, Invoice.package_id == Package.id)
+    )
+    count_stmt = (
+        select(func.count())
+        .select_from(Invoice)
+        .join(Patient, Invoice.patient_id == Patient.id)
+        .join(Package, Invoice.package_id == Package.id)
+    )
+
     if status_filter is not None:
-        statement = statement.where(Invoice.status == status_filter)
+        list_stmt = list_stmt.where(Invoice.status == status_filter)
+        count_stmt = count_stmt.where(Invoice.status == status_filter)
     if patient_id is not None:
-        statement = statement.where(Invoice.patient_id == patient_id)
-    statement = statement.order_by(col(Invoice.issued_on).desc(), col(Invoice.id).desc())
-    invoices = list(session.exec(statement).all())
-
-    patient_ids = {i.patient_id for i in invoices}
-    package_ids = {i.package_id for i in invoices}
-    patients = {
-        p.id: p.full_name
-        for p in session.exec(select(Patient).where(col(Patient.id).in_(patient_ids))).all()
-        if p.id is not None
-    } if patient_ids else {}
-    packages = {
-        pkg.id: pkg.name
-        for pkg in session.exec(select(Package).where(col(Package.id).in_(package_ids))).all()
-        if pkg.id is not None
-    } if package_ids else {}
-
-    rows = [
-        to_response(
-            inv,
-            patient_name=patients.get(inv.patient_id, "—"),
-            package_name=packages.get(inv.package_id, "—"),
-        )
-        for inv in invoices
-    ]
+        list_stmt = list_stmt.where(Invoice.patient_id == patient_id)
+        count_stmt = count_stmt.where(Invoice.patient_id == patient_id)
     if q:
-        needle = q.strip().lower()
-        rows = [
-            r
-            for r in rows
-            if needle in r.invoice_number.lower()
-            or needle in r.patient_name.lower()
-            or needle in r.package_name.lower()
-        ]
-    return rows
+        pattern = f"%{q.strip()}%"
+        q_filter = or_(
+            col(Invoice.invoice_number).ilike(pattern),
+            col(Patient.full_name).ilike(pattern),
+            col(Package.name).ilike(pattern),
+        )
+        list_stmt = list_stmt.where(q_filter)
+        count_stmt = count_stmt.where(q_filter)
+
+    total = session.exec(count_stmt).one()
+    rows = session.exec(
+        list_stmt.order_by(col(Invoice.issued_on).desc(), col(Invoice.id).desc())
+        .offset(offset)
+        .limit(page_size)
+    ).all()
+
+    items = [
+        to_response(inv, patient_name=patient_name, package_name=package_name)
+        for inv, patient_name, package_name in rows
+    ]
+    return make_page(items=items, total=total, page=page, page_size=page_size)
 
 
 def get_invoice(session: Session, invoice_id: int) -> Invoice:

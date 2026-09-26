@@ -17,6 +17,7 @@ from app.models.enums import (
 from app.models.invoice import Invoice
 from app.models.package import Package
 from app.models.patient import Patient
+from app.models.refresh_token import RefreshToken
 from app.models.therapist import Therapist, TherapistDayOverride
 from app.models.user import User, UserRole
 
@@ -24,6 +25,7 @@ __all__ = [
     "SQLModel",
     "User",
     "UserRole",
+    "RefreshToken",
     "Package",
     "Therapist",
     "TherapistDayOverride",

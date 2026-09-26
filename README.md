@@ -1,67 +1,101 @@
 # PhysioDesk
 
-Clinic management tool for a physiotherapy practice — FastAPI backend, Next.js frontend, PostgreSQL.
+Full-stack clinic management app for a physiotherapy practice: patients, therapists, scheduling, billing, and a live dashboard.
+
+Built as a take-home with **FastAPI**, **Next.js**, and **PostgreSQL**.
+
+---
 
 ## Stack
 
-| Layer | Tech |
+| Layer | Choice |
 | --- | --- |
-| Frontend | Next.js (App Router) + TypeScript + Tailwind |
-| Backend | FastAPI + SQLModel + Alembic |
-| Database | PostgreSQL 18 (Docker) |
+| Backend | Python 3.14, FastAPI, SQLModel, Alembic, JWT (Argon2 passwords) |
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Lucide |
+| Database | PostgreSQL 18 |
+| Tooling | `uv` (Python), `pnpm` (Node), Docker Compose |
 
-## Project layout
+Schema overview: [docs/erd.md](docs/erd.md) · Interactive API docs: `/docs` on the API host
 
-```
-PhysioDesk/
-├── client/          # Next.js frontend
-├── server/          # FastAPI backend
-├── docs/            # Schema ERD and notes
-└── docker-compose.yml
-```
+---
 
-Database ERD: [docs/erd.md](docs/erd.md)
+## Test login credentials
 
-## Prerequisites
+Seeded by `scripts/seed_users.py` (also runs automatically in the Docker `api` container).
 
-- Node.js 20+ and [pnpm](https://pnpm.io)
-- Python 3.14+ and [uv](https://docs.astral.sh/uv/)
-- [Docker](https://docs.docker.com/get-docker/) (for Postgres)
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin (full access) | `admin@physiodesk.com` | `Admin123!` |
+| Staff / receptionist | `staff@physiodesk.com` | `Staff123!` |
 
-## Quick start
+**Role rules**
 
-### 1. Environment files
+- **Admin** — therapists CRUD, billing write, patients, schedule, dashboard
+- **Staff** — patients + schedule; billing **read-only**; no therapist management
+
+---
+
+## Quick start (Docker — recommended)
+
+One command for Postgres + API + frontend:
 
 ```bash
-# Postgres (Docker Compose)
+cp .env.example .env   # optional
+docker compose up --build
+```
+
+| Service | URL |
+| --- | --- |
+| App | http://localhost:3000 |
+| API / Swagger | http://localhost:8000/docs |
+| Health | http://localhost:8000/api/v1/health |
+
+On startup the API runs migrations and seeds demo data. Postgres data lives in the `physiodesk_pgdata` volume.
+
+```bash
+docker compose down       # stop (keep data)
+docker compose down -v    # stop and wipe the DB volume
+```
+
+---
+
+## Local development (services separately)
+
+### Prerequisites
+
+- Docker (Postgres)
+- Node.js 20+ and [pnpm](https://pnpm.io)
+- Python 3.14+ and [uv](https://docs.astral.sh/uv/)
+
+### 1. Environment
+
+```bash
 cp .env.example .env
-
-# Backend
 cp server/.env.example server/.env
-
-# Frontend
 cp client/.env.example client/.env.local
 ```
 
-Keep `DATABASE_URL` in `server/.env` aligned with `POSTGRES_*` in the root `.env`.
+Align `DATABASE_URL` in `server/.env` with the root `POSTGRES_*` values.
 
-### 2. Start Postgres
+### 2. Database
 
 ```bash
 docker compose up -d db
+cd server
+uv sync
+uv run alembic upgrade head
+uv run python scripts/seed_users.py
 ```
 
 ### 3. Backend
 
 ```bash
 cd server
-uv sync
 uv run fastapi dev
 ```
 
-- API: http://127.0.0.1:8000
-- Swagger: http://127.0.0.1:8000/docs
-- Health: http://127.0.0.1:8000/api/v1/health
+- API: http://127.0.0.1:8000  
+- Swagger: http://127.0.0.1:8000/docs  
 
 ### 4. Frontend
 
@@ -71,179 +105,140 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000 and sign in with the credentials above.
+
+### 5. Tests
+
+With Postgres up, migrations applied, and seed data present:
+
+```bash
+cd server
+uv run pytest
+```
+
+Covers schedule slot generation and double-booking → HTTP 409.
+
+---
 
 ## Environment variables
 
-### Root (`.env`) — Docker Compose
+### Root (`.env`) — Compose
 
 | Variable | Description |
 | --- | --- |
-| `POSTGRES_USER` | Database user |
-| `POSTGRES_PASSWORD` | Database password |
-| `POSTGRES_DB` | Database name |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Database credentials |
 | `POSTGRES_PORT` | Host port (default `5432`) |
+| `JWT_SECRET_KEY` | Used by the `api` Compose service |
+| `NEXT_PUBLIC_API_URL` | Browser-facing API URL baked into the web image |
 
 ### Server (`server/.env`)
 
 | Variable | Description |
 | --- | --- |
-| `APP_NAME` | API title |
-| `APP_VERSION` | API version |
-| `API_V1_PREFIX` | API mount path (default `/api/v1`) |
-| `DEBUG` | SQL echo / debug flag |
-| `DATABASE_URL` | SQLAlchemy URL (`postgresql+psycopg://…`) |
-| `CORS_ORIGINS` | Comma-separated allowed origins |
-| `JWT_SECRET_KEY` | Secret used to sign JWTs |
-| `JWT_ALGORITHM` | JWT algorithm (default `HS256`) |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token lifetime |
+| `DATABASE_URL` | `postgresql+psycopg://user:pass@host:5432/db` |
+| `CORS_ORIGINS` | Comma-separated origins (e.g. `http://localhost:3000`) |
+| `JWT_SECRET_KEY` | Signing secret for access/refresh tokens |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access JWT lifetime (default 30) |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh JWT lifetime (default 7) |
 
 ### Client (`client/.env.local`)
 
 | Variable | Description |
 | --- | --- |
-| `API_URL` | FastAPI base URL (server components) |
-| `NEXT_PUBLIC_API_URL` | FastAPI base URL (browser / login) |
+| `NEXT_PUBLIC_API_URL` | FastAPI base URL for the browser |
+| `API_URL` | FastAPI base URL for Next server components |
 
-## Backend structure
+---
 
-```
-server/app/
-  main.py       # app factory + lifespan
-  core/         # settings
-  db/           # engine + sessions
-  models/       # SQLModel tables
-  schemas/      # Pydantic API schemas
-  api/          # routers + dependencies
-  services/     # business logic
-server/alembic/ # migrations
-```
+## Features
 
-### Migrations
+- **Auth** — email/password, Argon2 hashes, JWT access + rotated refresh tokens, logout / logout-everywhere
+- **Dashboard** — patients today, therapists on duty, revenue today, open slots, capacity bars, recent patients
+- **Patients** — CRUD, search/filter, profile with sessions + billing history
+- **Schedule** — custom therapist × time grid (not a calendar library), book / reschedule / cancel, conflict warning UX
+- **Billing** — invoice CRUD (staff read-only), printable invoice, Paid/Due
+- **Therapists** — admin CRUD, weekly hours, day overrides (day off / custom hours), soft-deactivate
 
-```bash
-cd server
-uv run alembic revision --autogenerate -m "describe change"
-uv run alembic upgrade head
-```
+Extras: list pagination, Docker Compose full stack, schedule unit/API tests.
 
-### Auth API
+---
 
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| `POST` | `/api/v1/auth/login` | No | Email + password → access & refresh JWT |
-| `POST` | `/api/v1/auth/refresh` | No | Refresh token → new token pair |
-| `GET` | `/api/v1/auth/me` | Bearer | Current user profile |
+## API overview
 
-### Therapists API (admin only)
+Full interactive docs: **http://127.0.0.1:8000/docs**
 
-| Method | Path | Description |
+| Area | Prefix | Notes |
 | --- | --- | --- |
-| `GET` | `/api/v1/therapists` | Roster list (`q`, `include_inactive`); includes weekly hours + patients seen today. **Any authenticated user** (for patient assignment). |
-| `POST` | `/api/v1/therapists` | Create therapist (**admin**) |
-| `GET` | `/api/v1/therapists/{id}` | Get one (authenticated) |
-| `PATCH` | `/api/v1/therapists/{id}` | Update (**admin**) |
-| `DELETE` | `/api/v1/therapists/{id}` | Soft-deactivate (**admin**) |
-| `GET` | `/api/v1/therapists/{id}/overrides` | List day overrides (**admin**) |
-| `PUT` | `/api/v1/therapists/{id}/overrides` | Upsert day off / custom hours (**admin**) |
-| `DELETE` | `/api/v1/therapists/{id}/overrides/{override_id}` | Remove override (**admin**) |
+| Auth | `/api/v1/auth` | login, refresh, logout, logout-all, me |
+| Therapists | `/api/v1/therapists` | writes admin-only; list paginated |
+| Patients | `/api/v1/patients` | paginated list |
+| Schedule | `/api/v1/schedule`, `/api/v1/appointments` | day grid + booking |
+| Billing | `/api/v1/invoices` | writes admin-only; list paginated |
+| Dashboard | `/api/v1/dashboard` | live aggregates |
+| Packages | `/api/v1/packages` | lookup for enrollment / invoices |
 
-### Packages API
+List endpoints that support pagination return:
 
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/v1/packages` | List packages (`active_only`, default true) |
-
-### Patients API (admin + staff)
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/v1/patients` | List (`q`, `therapist_id`, `status`) |
-| `POST` | `/api/v1/patients` | Create |
-| `GET` | `/api/v1/patients/{id}` | Detail + session history + billing history |
-| `PATCH` | `/api/v1/patients/{id}` | Update |
-| `DELETE` | `/api/v1/patients/{id}` | Hard delete (blocked if invoices exist) |
-
-### Schedule API (admin + staff)
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/v1/schedule/day?date=YYYY-MM-DD` | Day grid: therapists × slots (`open` / `booked` / off) |
-| `POST` | `/api/v1/appointments` | Book (validates availability; no double-book) |
-| `GET` | `/api/v1/appointments/{id}` | Appointment detail |
-| `PATCH` | `/api/v1/appointments/{id}` | Reschedule / edit notes / status |
-| `POST` | `/api/v1/appointments/{id}/cancel` | Cancel (frees the slot) |
-
-### Billing API
-
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| `GET` | `/api/v1/invoices` | Any user | List (`status`, `patient_id`, `q`) |
-| `GET` | `/api/v1/invoices/{id}` | Any user | Detail |
-| `POST` | `/api/v1/invoices` | **Admin** | Create bill |
-| `PATCH` | `/api/v1/invoices/{id}` | **Admin** | Update / mark paid |
-| `DELETE` | `/api/v1/invoices/{id}` | **Admin** | Void/delete |
-
-### Dashboard API
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `GET` | `/api/v1/dashboard` | Live stats, therapist capacity, recent patients (`?date=` optional) |
-
-Roles: `admin` (full access), `staff` (patients/schedule; **billing read-only**; therapists management admin-only).
-
-Seed users (after migrate):
-
-```bash
-cd server
-uv run python scripts/seed_users.py
+```json
+{ "items": [], "page": 1, "page_size": 20, "total": 0, "total_pages": 0 }
 ```
 
-| Email | Password | Role |
-| --- | --- | --- |
-| `admin@physiodesk.com` | `Admin123!` | admin |
-| `staff@physiodesk.com` | `Staff123!` | staff |
+Public (no auth): `/`, `/api/v1/health`.
 
-Passwords are hashed with **Argon2** (`pwdlib`). `/` and `/api/v1/health` stay public for ops; other routes will require auth as they are added.
+---
 
-The seed script also creates packages, therapists, patients, appointments, invoices, and sample activity logs when the domain tables are empty.
+## Project layout
+
+```
+PhysioDesk/
+├── client/                 # Next.js app
+│   ├── app/                # routes (login + authenticated shell)
+│   └── components/         # UI + feature modules
+├── server/
+│   ├── app/                # FastAPI (models, schemas, routes, services)
+│   ├── alembic/            # migrations
+│   ├── scripts/            # seed_users.py
+│   └── tests/              # pytest
+├── docs/erd.md             # ERD
+└── docker-compose.yml      # db + api + web
+```
+
+---
 
 ## Assumptions
 
-- **Therapists are not login users** — only `users` (admin/staff) authenticate.
-- **Session history** on a patient profile comes from **appointments** (no separate clinical sessions table).
-- **`activity_logs`** is an append-only who-did-what audit trail (not clinical notes).
-- **Deleting a therapist** soft-deactivates (`is_active=false`); existing appointments stay.
-- **Booking an appointment does not auto-create an invoice** — invoices are created via Billing; optional `appointment_id` link.
-- **Staff:** full access to patients/schedule; read-only billing; no therapist management (enforced as those APIs land).
-- **Net invoice amount** = `amount - discount` (computed, not stored).
+- Therapists are **not** login users — only `users` (admin/staff) authenticate.
+- Patient “session history” is derived from **appointments** (no separate clinical sessions table).
+- `activity_logs` is an append-only audit trail (who did what), not clinical notes.
+- Deleting a therapist **soft-deactivates** (`is_active=false`); existing appointments remain.
+- Booking an appointment does **not** auto-create an invoice; invoices are created in Billing (optional `appointment_id`).
+- Staff: full patients/schedule; billing read-only; no therapist management (API-enforced).
+- Invoice `net_amount` = `amount - discount` (computed).
+- Refresh tokens are stored hashed; each refresh **rotates** the token. Reusing a rotated refresh token revokes all sessions for that user.
+- Schedule grid is custom-built (no FullCalendar) for tighter control of open / booked / off cells.
 
-## Frontend structure
+---
 
-```
-client/app/
-  (app)/            # authenticated shell (sidebar + pages)
-  login/            # login page (no sidebar)
-client/components/
-  layout/           # AppShell, Sidebar, TopBar
-  ui/               # Button, Card, StatusPill, Input
-```
+## What I would do with more time
 
-Design system tokens live in `client/app/globals.css` (palette + Fraunces / Inter / IBM Plex Mono).
+- Deploy a public demo (e.g. Railway/Render + Vercel) and/or a short Loom walkthrough
+- Stronger frontend test coverage (Playwright smoke for login → book → invoice)
+- Soft-delete / archive for patients and invoices instead of hard delete where safer
+- Email or SMS reminders for upcoming appointments
+- Finer-grained audit UI for `activity_logs`
+- Optimistic concurrency on booking (short-lived slot locks) for multi-reception desks
 
-Auth: login-only (no signup). Tokens live in `localStorage`. Unauthenticated users are redirected to `/login`. Staff do not see the Therapists nav (admin-only).
+---
 
+## Useful commands
 
 | Command | Where | Purpose |
 | --- | --- | --- |
-| `docker compose up -d db` | root | Start Postgres |
-| `docker compose down` | root | Stop Postgres (keep data) |
-| `docker compose down -v` | root | Stop Postgres and wipe volume |
-| `uv run fastapi dev` | `server/` | API with auto-reload |
-| `uv run fastapi run` | `server/` | API production mode |
-| `pnpm dev` | `client/` | Next.js dev server |
-| `pnpm build` / `pnpm start` | `client/` | Production build |
-| `pnpm lint` | `client/` | ESLint |
-
-
+| `docker compose up --build` | root | Full stack |
+| `docker compose up -d db` | root | Postgres only |
+| `uv run alembic upgrade head` | `server/` | Apply migrations |
+| `uv run python scripts/seed_users.py` | `server/` | Seed users + demo data |
+| `uv run fastapi dev` | `server/` | API with reload |
+| `uv run pytest` | `server/` | Backend tests |
+| `pnpm dev` | `client/` | Frontend dev server |
+| `pnpm build` / `pnpm start` | `client/` | Production frontend |

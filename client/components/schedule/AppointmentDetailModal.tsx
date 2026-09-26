@@ -7,10 +7,15 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Select } from "@/components/ui/Select";
 import { StatusPill } from "@/components/ui/StatusPill";
+import {
+  checkSlotConflict,
+  type SlotConflict,
+} from "@/lib/schedule-conflict";
 import type {
   Appointment,
   AppointmentUpdatePayload,
   PaymentMethod,
+  ScheduleDay,
   Therapist,
 } from "@/lib/api";
 
@@ -28,6 +33,7 @@ export function AppointmentDetailModal({
   open,
   appointment,
   therapists,
+  scheduleDay,
   onClose,
   onReschedule,
   onCancel,
@@ -35,6 +41,7 @@ export function AppointmentDetailModal({
   open: boolean;
   appointment: Appointment | null;
   therapists: Therapist[];
+  scheduleDay?: ScheduleDay | null;
   onClose: () => void;
   onReschedule: (payload: AppointmentUpdatePayload) => Promise<void>;
   onCancel: () => Promise<void>;
@@ -49,12 +56,20 @@ export function AppointmentDetailModal({
   const [saving, setSaving] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
+  const [conflict, setConflict] = useState<SlotConflict | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [confirmConflict, setConfirmConflict] = useState(false);
+  const [pendingPayload, setPendingPayload] =
+    useState<AppointmentUpdatePayload | null>(null);
 
   useEffect(() => {
     if (!open || !appointment) return;
     setMode("view");
     setError(null);
     setConfirmCancel(false);
+    setConfirmConflict(false);
+    setPendingPayload(null);
+    setConflict(null);
     setTherapistId(String(appointment.therapist_id));
     setAppointmentDate(appointment.appointment_date);
     setStartTime(toTimeInput(appointment.start_time));
@@ -62,25 +77,72 @@ export function AppointmentDetailModal({
     setNotes(appointment.notes ?? "");
   }, [open, appointment]);
 
-  async function handleReschedule(e: React.FormEvent) {
-    e.preventDefault();
-    if (!appointment) return;
+  useEffect(() => {
+    if (!open || mode !== "reschedule" || !appointment || !therapistId || !appointmentDate || !startTime) {
+      setConflict(null);
+      return;
+    }
+
+    let active = true;
+    const handle = window.setTimeout(() => {
+      setChecking(true);
+      void checkSlotConflict({
+        date: appointmentDate,
+        therapistId: Number(therapistId),
+        startTime,
+        excludeAppointmentId: appointment.id,
+        cachedDay: scheduleDay,
+      })
+        .then((result) => {
+          if (active) setConflict(result);
+        })
+        .catch(() => {
+          if (active) setConflict(null);
+        })
+        .finally(() => {
+          if (active) setChecking(false);
+        });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(handle);
+    };
+  }, [open, mode, appointment, therapistId, appointmentDate, startTime, scheduleDay]);
+
+  async function save(payload: AppointmentUpdatePayload) {
     setSaving(true);
     setError(null);
     try {
-      await onReschedule({
-        therapist_id: Number(therapistId),
-        appointment_date: appointmentDate,
-        start_time: startTime,
-        payment_method: paymentMethod,
-        notes: notes.trim() || null,
-      });
+      await onReschedule(payload);
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not reschedule");
     } finally {
       setSaving(false);
+      setConfirmConflict(false);
+      setPendingPayload(null);
     }
+  }
+
+  async function handleReschedule(e: React.FormEvent) {
+    e.preventDefault();
+    if (!appointment) return;
+    const payload: AppointmentUpdatePayload = {
+      therapist_id: Number(therapistId),
+      appointment_date: appointmentDate,
+      start_time: startTime,
+      payment_method: paymentMethod,
+      notes: notes.trim() || null,
+    };
+
+    if (conflict) {
+      setPendingPayload(payload);
+      setConfirmConflict(true);
+      return;
+    }
+
+    await save(payload);
   }
 
   async function handleCancelConfirm() {
@@ -132,7 +194,7 @@ export function AppointmentDetailModal({
                 </dt>
                 <dd className="mt-1">
                   <StatusPill tone={statusTone(appointment.status)}>
-                    {appointment.status.replace("_", " ")}
+                    {appointment.status}
                   </StatusPill>
                 </dd>
               </div>
@@ -142,21 +204,15 @@ export function AppointmentDetailModal({
                 </dt>
                 <dd className="mt-1 capitalize">{appointment.payment_method}</dd>
               </div>
-              <div className="sm:col-span-2">
-                <dt className="text-xs uppercase tracking-wide text-text-secondary">
-                  Notes
-                </dt>
-                <dd className="mt-1 text-text-secondary">
-                  {appointment.notes || "—"}
-                </dd>
-              </div>
+              {appointment.notes ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-xs uppercase tracking-wide text-text-secondary">
+                    Notes
+                  </dt>
+                  <dd className="mt-1 text-text-secondary">{appointment.notes}</dd>
+                </div>
+              ) : null}
             </dl>
-
-            {error ? (
-              <p className="rounded-[10px] bg-status-danger-soft px-3 py-2 text-sm text-status-danger">
-                {error}
-              </p>
-            ) : null}
 
             {appointment.status !== "cancelled" ? (
               <div className="flex flex-wrap justify-end gap-2">
@@ -219,6 +275,15 @@ export function AppointmentDetailModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
             />
+            {checking ? (
+              <p className="text-xs text-text-secondary">Checking availability…</p>
+            ) : null}
+            {conflict ? (
+              <p className="rounded-[10px] bg-status-danger-soft px-3 py-2 text-sm text-status-danger">
+                That slot is already booked for {conflict.patientName}. Pick another
+                time to avoid a double-booking.
+              </p>
+            ) : null}
             {error ? (
               <p className="rounded-[10px] bg-status-danger-soft px-3 py-2 text-sm text-status-danger">
                 {error}
@@ -233,7 +298,7 @@ export function AppointmentDetailModal({
               >
                 Back
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving || checking}>
                 {saving ? "Saving…" : "Save changes"}
               </Button>
             </div>
@@ -255,6 +320,29 @@ export function AppointmentDetailModal({
           if (!cancelBusy) setConfirmCancel(false);
         }}
         onConfirm={handleCancelConfirm}
+      />
+
+      <ConfirmDialog
+        open={confirmConflict}
+        title="Slot already booked"
+        description={
+          conflict
+            ? `This time is already booked for ${conflict.patientName}. Saving anyway will be rejected by the server. Continue?`
+            : "This slot appears to be taken."
+        }
+        confirmLabel="Save anyway"
+        cancelLabel="Choose another time"
+        tone="danger"
+        busy={saving}
+        onClose={() => {
+          if (!saving) {
+            setConfirmConflict(false);
+            setPendingPayload(null);
+          }
+        }}
+        onConfirm={() => {
+          if (pendingPayload) void save(pendingPayload);
+        }}
       />
     </>
   );

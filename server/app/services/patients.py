@@ -3,7 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from fastapi import HTTPException, status
-from sqlmodel import Session, col, or_, select
+from sqlmodel import Session, col, func, or_, select
 
 from app.models.appointment import Appointment
 from app.models.enums import PatientStatus
@@ -12,6 +12,7 @@ from app.models.package import Package
 from app.models.patient import Patient
 from app.models.therapist import Therapist
 from app.models.user import User
+from app.schemas.pagination import Page, clamp_pagination, make_page
 from app.schemas.patient import (
     PatientCreate,
     PatientDetailResponse,
@@ -92,24 +93,38 @@ def list_patients(
     q: str | None = None,
     therapist_id: int | None = None,
     status_filter: PatientStatus | None = None,
-) -> list[PatientResponse]:
-    statement = select(Patient)
+    page: int = 1,
+    page_size: int = 20,
+) -> Page[PatientResponse]:
+    page, page_size, offset = clamp_pagination(page, page_size)
+    filters = []
     if q:
         pattern = f"%{q.strip()}%"
-        statement = statement.where(
+        filters.append(
             or_(
                 col(Patient.full_name).ilike(pattern),
                 col(Patient.phone).ilike(pattern),
             )
         )
     if therapist_id is not None:
-        statement = statement.where(Patient.therapist_id == therapist_id)
+        filters.append(Patient.therapist_id == therapist_id)
     if status_filter is not None:
-        statement = statement.where(Patient.status == status_filter)
-    statement = statement.order_by(col(Patient.created_at).desc())
-    patients = list(session.exec(statement).all())
+        filters.append(Patient.status == status_filter)
+
+    count_stmt = select(func.count()).select_from(Patient)
+    list_stmt = select(Patient)
+    for f in filters:
+        count_stmt = count_stmt.where(f)
+        list_stmt = list_stmt.where(f)
+
+    total = session.exec(count_stmt).one()
+    patients = list(
+        session.exec(
+            list_stmt.order_by(col(Patient.created_at).desc()).offset(offset).limit(page_size)
+        ).all()
+    )
     therapists, packages = _names_for(session, patients)
-    return [
+    items = [
         to_response(
             p,
             therapist_name=therapists.get(p.therapist_id, "—"),
@@ -117,6 +132,7 @@ def list_patients(
         )
         for p in patients
     ]
+    return make_page(items=items, total=total, page=page, page_size=page_size)
 
 
 def get_patient(session: Session, patient_id: int) -> Patient:

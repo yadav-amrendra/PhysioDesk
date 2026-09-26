@@ -10,6 +10,7 @@ from app.models.appointment import Appointment
 from app.models.enums import AppointmentStatus
 from app.models.therapist import Therapist, TherapistDayOverride
 from app.models.user import User
+from app.schemas.pagination import Page, clamp_pagination, make_page
 from app.schemas.therapist import (
     DayOverrideResponse,
     DayOverrideUpsert,
@@ -83,21 +84,34 @@ def list_therapists(
     *,
     q: str | None = None,
     include_inactive: bool = False,
-) -> list[TherapistResponse]:
-    statement = select(Therapist)
+    page: int = 1,
+    page_size: int = 20,
+) -> Page[TherapistResponse]:
+    page, page_size, offset = clamp_pagination(page, page_size)
+    filters = []
     if not include_inactive:
-        statement = statement.where(Therapist.is_active == True)  # noqa: E712
+        filters.append(Therapist.is_active == True)  # noqa: E712
     if q:
         pattern = f"%{q.strip()}%"
-        statement = statement.where(
+        filters.append(
             or_(
                 col(Therapist.full_name).ilike(pattern),
                 col(Therapist.specialty).ilike(pattern),
             )
         )
-    statement = statement.order_by(Therapist.full_name)
-    therapists = session.exec(statement).all()
-    return [to_response(session, t) for t in therapists]
+
+    count_stmt = select(func.count()).select_from(Therapist)
+    list_stmt = select(Therapist)
+    for f in filters:
+        count_stmt = count_stmt.where(f)
+        list_stmt = list_stmt.where(f)
+
+    total = session.exec(count_stmt).one()
+    therapists = session.exec(
+        list_stmt.order_by(Therapist.full_name).offset(offset).limit(page_size)
+    ).all()
+    items = [to_response(session, t) for t in therapists]
+    return make_page(items=items, total=total, page=page, page_size=page_size)
 
 
 def get_therapist(session: Session, therapist_id: int) -> Therapist:

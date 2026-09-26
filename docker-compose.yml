@@ -17,5 +17,40 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build: ./server
+    container_name: physiodesk-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: PhysioDesk API
+      APP_VERSION: 0.1.0
+      API_V1_PREFIX: /api/v1
+      DEBUG: "false"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-physiodesk}:${POSTGRES_PASSWORD:-physiodesk}@db:5432/${POSTGRES_DB:-physiodesk}
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-px6Hn2SPMPoipxsXZGdFcZXc8v2jDpPZeOaBUUbx4q5RUXlvWdbYtg9Q1CFu8cGg}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./client
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    container_name: physiodesk-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    depends_on:
+      - api
+
 volumes:
   physiodesk_pgdata:

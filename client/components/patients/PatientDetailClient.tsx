@@ -13,6 +13,7 @@ import {
   apiGet,
   apiPatch,
   type Package,
+  type Paginated,
   type PatientDetail,
   type PatientPayload,
   type PatientStatus,
@@ -54,13 +55,13 @@ export function PatientDetailClient({ patientId }: { patientId: number }) {
     setLoading(true);
     setError(null);
     try {
-      const [detail, tRows, pRows] = await Promise.all([
+      const [detail, tPage, pRows] = await Promise.all([
         apiGet<PatientDetail>(`/api/v1/patients/${patientId}`, true),
-        apiGet<Therapist[]>("/api/v1/therapists", true),
+        apiGet<Paginated<Therapist>>("/api/v1/therapists?page_size=100", true),
         apiGet<Package[]>("/api/v1/packages", true),
       ]);
       setPatient(detail);
-      setTherapists(tRows);
+      setTherapists(tPage.items);
       setPackages(pRows);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load patient");

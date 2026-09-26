@@ -28,7 +28,8 @@ type AuthContextValue = {
   status: AuthStatus;
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  logoutEverywhere: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
 };
 
@@ -42,18 +43,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<User | null>(null);
 
-  const logout = useCallback(() => {
+  const clearLocalSession = useCallback(() => {
     clearTokens();
     setUser(null);
     setStatus("unauthenticated");
   }, []);
 
+  const logout = useCallback(async () => {
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      try {
+        await apiPost("/api/v1/auth/logout", { refresh_token: refreshToken });
+      } catch {
+        // Best-effort — clear local session regardless.
+      }
+    }
+    clearLocalSession();
+  }, [clearLocalSession]);
+
+  const logoutEverywhere = useCallback(async () => {
+    try {
+      await apiRequest("/api/v1/auth/logout-all", {
+        method: "POST",
+        auth: true,
+      });
+    } catch {
+      // Still clear local session.
+    }
+    clearLocalSession();
+  }, [clearLocalSession]);
+
   const refreshSession = useCallback(async (): Promise<boolean> => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) {
-      clearTokens();
-      setUser(null);
-      setStatus("unauthenticated");
+      clearLocalSession();
       return false;
     }
 
@@ -67,18 +90,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("authenticated");
       return true;
     } catch {
-      clearTokens();
-      setUser(null);
-      setStatus("unauthenticated");
+      clearLocalSession();
       return false;
     }
-  }, []);
+  }, [clearLocalSession]);
 
   useEffect(() => {
     let active = true;
 
     async function bootstrap() {
-      // Yield so token absence doesn't setState synchronously inside the effect.
       await Promise.resolve();
       if (!active) return;
 
@@ -118,8 +138,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, user, login, logout, refreshSession }),
-    [status, user, login, logout, refreshSession],
+    () => ({
+      status,
+      user,
+      login,
+      logout,
+      logoutEverywhere,
+      refreshSession,
+    }),
+    [status, user, login, logout, logoutEverywhere, refreshSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

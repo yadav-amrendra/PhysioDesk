@@ -1,4 +1,4 @@
-import { Card, CardTitle } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { RedirectIfAuthenticated } from "@/components/auth/RequireAuth";
 
@@ -17,12 +17,6 @@ export default function LoginPage() {
           </div>
 
           <LoginForm />
-
-          <div className="mt-6 rounded-[10px] bg-primary-soft px-3 py-3 text-xs text-primary-text-on-soft">
-            <CardTitle className="mb-1 text-sm">Demo accounts</CardTitle>
-            <p className="font-mono">admin@physiodesk.com / Admin123!</p>
-            <p className="mt-1 font-mono">staff@physiodesk.com / Staff123!</p>
-          </div>
         </Card>
       </div>
     </RedirectIfAuthenticated>

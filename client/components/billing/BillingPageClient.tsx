@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { Select } from "@/components/ui/Select";
 import { StatusPill } from "@/components/ui/StatusPill";
 import {
@@ -21,8 +22,11 @@ import {
   type InvoicePayload,
   type InvoiceUpdatePayload,
   type Package,
+  type Paginated,
   type Patient,
 } from "@/lib/api";
+
+const PAGE_SIZE = 20;
 
 function money(value: string | number): string {
   return Number(value).toFixed(2);
@@ -33,6 +37,9 @@ export function BillingPageClient() {
   const isAdmin = user?.role === "admin";
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [query, setQuery] = useState("");
@@ -49,22 +56,29 @@ export function BillingPageClient() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("page_size", String(PAGE_SIZE));
       if (query.trim()) params.set("q", query.trim());
       if (statusFilter) params.set("status", statusFilter);
-      const qs = params.toString();
-      const [rows, patientRows, packageRows] = await Promise.all([
-        apiGet<Invoice[]>(`/api/v1/invoices${qs ? `?${qs}` : ""}`, true),
-        apiGet<Patient[]>("/api/v1/patients", true),
+      const [result, patientPage, packageRows] = await Promise.all([
+        apiGet<Paginated<Invoice>>(`/api/v1/invoices?${params.toString()}`, true),
+        apiGet<Paginated<Patient>>("/api/v1/patients?page_size=100", true),
         apiGet<Package[]>("/api/v1/packages", true),
       ]);
-      setInvoices(rows);
-      setPatients(patientRows);
+      setInvoices(result.items);
+      setTotal(result.total);
+      setTotalPages(result.total_pages);
+      setPatients(patientPage.items);
       setPackages(packageRows);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load invoices");
     } finally {
       setLoading(false);
     }
+  }, [query, statusFilter, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [query, statusFilter]);
 
   useEffect(() => {
@@ -351,6 +365,14 @@ export function BillingPageClient() {
               </tbody>
             </table>
           </div>
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            disabled={loading}
+          />
         </Card>
       </div>
 

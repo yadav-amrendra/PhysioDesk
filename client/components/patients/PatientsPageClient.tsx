@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { Select } from "@/components/ui/Select";
 import { StatusPill } from "@/components/ui/StatusPill";
 import {
@@ -18,11 +19,14 @@ import {
   apiPatch,
   apiPost,
   type Package,
+  type Paginated,
   type Patient,
   type PatientPayload,
   type PatientStatus,
   type Therapist,
 } from "@/lib/api";
+
+const PAGE_SIZE = 20;
 
 function statusTone(status: PatientStatus): "success" | "neutral" | "danger" {
   if (status === "active") return "success";
@@ -37,6 +41,9 @@ function statusLabel(status: PatientStatus): string {
 
 export function PatientsPageClient() {
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [therapists, setTherapists] = useState<Therapist[]>([]);
   const [packages, setPackages] = useState<Package[]>([]);
   const [query, setQuery] = useState("");
@@ -50,11 +57,11 @@ export function PatientsPageClient() {
   const [confirmBusy, setConfirmBusy] = useState(false);
 
   const loadLookups = useCallback(async () => {
-    const [tRows, pRows] = await Promise.all([
-      apiGet<Therapist[]>("/api/v1/therapists", true),
+    const [tPage, pRows] = await Promise.all([
+      apiGet<Paginated<Therapist>>("/api/v1/therapists?page_size=100", true),
       apiGet<Package[]>("/api/v1/packages", true),
     ]);
-    setTherapists(tRows);
+    setTherapists(tPage.items);
     setPackages(pRows);
   }, []);
 
@@ -63,27 +70,34 @@ export function PatientsPageClient() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("page_size", String(PAGE_SIZE));
       if (query.trim()) params.set("q", query.trim());
       if (therapistFilter) params.set("therapist_id", therapistFilter);
       if (statusFilter) params.set("status", statusFilter);
-      const qs = params.toString();
-      const rows = await apiGet<Patient[]>(
-        `/api/v1/patients${qs ? `?${qs}` : ""}`,
+      const result = await apiGet<Paginated<Patient>>(
+        `/api/v1/patients?${params.toString()}`,
         true,
       );
-      setPatients(rows);
+      setPatients(result.items);
+      setTotal(result.total);
+      setTotalPages(result.total_pages);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load patients");
     } finally {
       setLoading(false);
     }
-  }, [query, therapistFilter, statusFilter]);
+  }, [query, therapistFilter, statusFilter, page]);
 
   useEffect(() => {
     void loadLookups().catch((err) => {
       setError(err instanceof Error ? err.message : "Failed to load lookups");
     });
   }, [loadLookups]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [query, therapistFilter, statusFilter]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -266,6 +280,14 @@ export function PatientsPageClient() {
               </tbody>
             </table>
           </div>
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            disabled={loading}
+          />
         </Card>
       </div>
 

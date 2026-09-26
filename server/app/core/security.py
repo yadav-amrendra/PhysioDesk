@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any
+from uuid import uuid4
 
 import jwt
 from pwdlib import PasswordHash
@@ -51,12 +52,13 @@ def create_access_token(*, subject: str, role: str) -> str:
     )
 
 
-def create_refresh_token(*, subject: str, role: str) -> str:
+def create_refresh_token(*, subject: str, role: str, jti: str | None = None) -> str:
+    token_jti = jti or uuid4().hex
     return create_token(
         subject=subject,
         token_type=TokenType.REFRESH,
         expires_delta=timedelta(days=settings.refresh_token_expire_days),
-        extra_claims={"role": role},
+        extra_claims={"role": role, "jti": token_jti},
     )
 
 
@@ -66,3 +68,10 @@ def decode_token(token: str) -> dict[str, Any]:
         settings.jwt_secret_key,
         algorithms=[settings.jwt_algorithm],
     )
+
+
+def hash_token(token: str) -> str:
+    """SHA-256 hex digest for storing refresh tokens at rest."""
+    import hashlib
+
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

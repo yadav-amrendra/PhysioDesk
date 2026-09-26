@@ -15,6 +15,7 @@ import {
   type Appointment,
   type AppointmentCreatePayload,
   type AppointmentUpdatePayload,
+  type Paginated,
   type Patient,
   type ScheduleDay,
   type ScheduleSlot,
@@ -103,14 +104,14 @@ export function SchedulePageClient() {
     setLoading(true);
     setError(null);
     try {
-      const [schedule, patientRows, therapistRows] = await Promise.all([
+      const [schedule, patientPage, therapistPage] = await Promise.all([
         apiGet<ScheduleDay>(`/api/v1/schedule/day?date=${date}`, true),
-        apiGet<Patient[]>("/api/v1/patients", true),
-        apiGet<Therapist[]>("/api/v1/therapists", true),
+        apiGet<Paginated<Patient>>("/api/v1/patients?status=active&page_size=100", true),
+        apiGet<Paginated<Therapist>>("/api/v1/therapists?page_size=100", true),
       ]);
       setDay(schedule);
-      setPatients(patientRows.filter((p) => p.status === "active"));
-      setTherapists(therapistRows.filter((t) => t.is_active));
+      setPatients(patientPage.items);
+      setTherapists(therapistPage.items.filter((t) => t.is_active));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load schedule");
     } finally {
@@ -368,6 +369,7 @@ export function SchedulePageClient() {
         defaultDate={date}
         defaultTherapistId={bookTherapistId}
         defaultStartTime={bookStartTime}
+        scheduleDay={day}
         onClose={() => setBookOpen(false)}
         onSubmit={handleBook}
       />
@@ -376,6 +378,7 @@ export function SchedulePageClient() {
         open={selected !== null}
         appointment={selected}
         therapists={therapists.length ? therapists : therapistOptions}
+        scheduleDay={day}
         onClose={() => setSelected(null)}
         onReschedule={handleReschedule}
         onCancel={handleCancel}

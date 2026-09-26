@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import CurrentUser, SessionDep
 from app.models.enums import PatientStatus
+from app.schemas.pagination import Page
 from app.schemas.patient import (
     PatientCreate,
     PatientDetailResponse,
@@ -13,16 +14,23 @@ from app.services import patients as patient_service
 router = APIRouter(prefix="/patients", tags=["patients"])
 
 
-@router.get("", response_model=list[PatientResponse])
+@router.get("", response_model=Page[PatientResponse])
 def list_patients(
     session: SessionDep,
     _user: CurrentUser,
     q: str | None = Query(default=None),
     therapist_id: int | None = Query(default=None),
     status: PatientStatus | None = Query(default=None),
-) -> list[PatientResponse]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> Page[PatientResponse]:
     return patient_service.list_patients(
-        session, q=q, therapist_id=therapist_id, status_filter=status
+        session,
+        q=q,
+        therapist_id=therapist_id,
+        status_filter=status,
+        page=page,
+        page_size=page_size,
     )
 
 

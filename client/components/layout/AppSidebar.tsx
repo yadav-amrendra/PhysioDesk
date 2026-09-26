@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, logoutEverywhere } = useAuth();
 
   const links = appNav.filter((item) => {
     if (item.href === "/therapists") {
@@ -18,8 +18,13 @@ export function AppSidebar() {
     return true;
   });
 
-  function onLogout() {
-    logout();
+  async function onLogout() {
+    await logout();
+    router.replace("/login");
+  }
+
+  async function onLogoutEverywhere() {
+    await logoutEverywhere();
     router.replace("/login");
   }
 
@@ -69,10 +74,17 @@ export function AppSidebar() {
         ) : null}
         <button
           type="button"
-          onClick={onLogout}
+          onClick={() => void onLogout()}
           className="w-full rounded-[10px] px-3 py-2 text-left text-sm text-white/70 transition-colors hover:bg-secondary-light hover:text-white"
         >
           Sign out
+        </button>
+        <button
+          type="button"
+          onClick={() => void onLogoutEverywhere()}
+          className="mt-1 w-full rounded-[10px] px-3 py-2 text-left text-xs text-white/45 transition-colors hover:bg-secondary-light hover:text-white/80"
+        >
+          Sign out everywhere
         </button>
       </div>
     </aside>

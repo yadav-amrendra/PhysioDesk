@@ -3,22 +3,30 @@ from fastapi import APIRouter, Query, Response, status
 from app.api.deps import AdminUser, CurrentUser, SessionDep
 from app.models.enums import InvoiceStatus
 from app.schemas.billing import InvoiceCreate, InvoiceResponse, InvoiceUpdate
+from app.schemas.pagination import Page
 from app.services import billing as billing_service
 
 router = APIRouter(prefix="/invoices", tags=["billing"])
 
 
-@router.get("", response_model=list[InvoiceResponse])
+@router.get("", response_model=Page[InvoiceResponse])
 def list_invoices(
     session: SessionDep,
     _user: CurrentUser,
     status_filter: InvoiceStatus | None = Query(default=None, alias="status"),
     patient_id: int | None = Query(default=None),
     q: str | None = Query(default=None),
-) -> list[InvoiceResponse]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> Page[InvoiceResponse]:
     """Admin + staff can read invoices (staff is read-only on writes)."""
     return billing_service.list_invoices(
-        session, status_filter=status_filter, patient_id=patient_id, q=q
+        session,
+        status_filter=status_filter,
+        patient_id=patient_id,
+        q=q,
+        page=page,
+        page_size=page_size,
     )
 
 

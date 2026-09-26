@@ -154,6 +154,16 @@ export function apiDelete(path: string, auth = false): Promise<void> {
   return apiRequest<void>(path, { method: "DELETE", auth });
 }
 
+export type Paginated<T> = {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+};
+
+
+
 export type HealthResponse = {
   status: string;
   database?: string;

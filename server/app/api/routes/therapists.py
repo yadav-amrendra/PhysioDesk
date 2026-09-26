@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, Response, status
 
 from app.api.deps import AdminUser, CurrentUser, SessionDep
+from app.schemas.pagination import Page
 from app.schemas.therapist import (
     DayOverrideResponse,
     DayOverrideUpsert,
@@ -13,16 +14,22 @@ from app.services import therapists as therapist_service
 router = APIRouter(prefix="/therapists", tags=["therapists"])
 
 
-@router.get("", response_model=list[TherapistResponse])
+@router.get("", response_model=Page[TherapistResponse])
 def list_therapists(
     session: SessionDep,
     _user: CurrentUser,
     q: str | None = Query(default=None, description="Search name or specialty"),
     include_inactive: bool = Query(default=False),
-) -> list[TherapistResponse]:
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+) -> Page[TherapistResponse]:
     """Any authenticated user can list therapists (needed for patient assignment)."""
     return therapist_service.list_therapists(
-        session, q=q, include_inactive=include_inactive
+        session,
+        q=q,
+        include_inactive=include_inactive,
+        page=page,
+        page_size=page_size,
     )
 
 

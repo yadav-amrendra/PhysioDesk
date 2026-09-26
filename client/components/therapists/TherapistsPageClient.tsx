@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Input } from "@/components/ui/Input";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { StatusPill } from "@/components/ui/StatusPill";
 import {
   ApiError,
@@ -16,9 +17,12 @@ import {
   apiGet,
   apiPatch,
   apiPost,
+  type Paginated,
   type Therapist,
   type TherapistPayload,
 } from "@/lib/api";
+
+const PAGE_SIZE = 20;
 
 const WEEKDAY_LABELS: Record<number, string> = {
   1: "Mon",
@@ -40,6 +44,9 @@ function formatTime(value: string): string {
 
 export function TherapistsPageClient() {
   const [therapists, setTherapists] = useState<Therapist[]>([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [query, setQuery] = useState("");
   const [includeInactive, setIncludeInactive] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -55,19 +62,26 @@ export function TherapistsPageClient() {
     setError(null);
     try {
       const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("page_size", String(PAGE_SIZE));
       if (query.trim()) params.set("q", query.trim());
       if (includeInactive) params.set("include_inactive", "true");
-      const qs = params.toString();
-      const rows = await apiGet<Therapist[]>(
-        `/api/v1/therapists${qs ? `?${qs}` : ""}`,
+      const result = await apiGet<Paginated<Therapist>>(
+        `/api/v1/therapists?${params.toString()}`,
         true,
       );
-      setTherapists(rows);
+      setTherapists(result.items);
+      setTotal(result.total);
+      setTotalPages(result.total_pages);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load therapists");
     } finally {
       setLoading(false);
     }
+  }, [query, includeInactive, page]);
+
+  useEffect(() => {
+    setPage(1);
   }, [query, includeInactive]);
 
   useEffect(() => {
@@ -237,6 +251,14 @@ export function TherapistsPageClient() {
               </tbody>
             </table>
           </div>
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            disabled={loading}
+          />
         </Card>
       </div>
 

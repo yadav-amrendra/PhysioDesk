@@ -11,7 +11,7 @@ import { PasswordInput } from "@/components/ui/PasswordInput";
 export function LoginForm() {
   const { login } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("admin@physiodesk.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -41,7 +41,7 @@ export function LoginForm() {
         name="email"
         type="email"
         autoComplete="email"
-        placeholder="admin@physiodesk.com"
+        placeholder="you@clinic.com"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
