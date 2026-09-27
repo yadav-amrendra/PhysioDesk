@@ -294,7 +294,7 @@ export type PatientDetail = Patient & {
   invoices: PatientInvoice[];
 };
 
-export type PaymentMethod = "cash" | "card" | "upi" | "insurance" | "other";
+export type PaymentMethod = "cash" | "card" | "insurance" | "other";
 export type AppointmentStatus = "booked" | "completed" | "cancelled" | "no_show";
 export type InvoiceStatus = "paid" | "due";
 

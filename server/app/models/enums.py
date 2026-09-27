@@ -26,7 +26,6 @@ class AppointmentStatus(str, Enum):
 class PaymentMethod(str, Enum):
     CASH = "cash"
     CARD = "card"
-    UPI = "upi"
     INSURANCE = "insurance"
     OTHER = "other"
 

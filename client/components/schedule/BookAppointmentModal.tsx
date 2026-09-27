@@ -213,7 +213,6 @@ export function BookAppointmentModal({
           >
             <option value="cash">Cash</option>
             <option value="card">Card</option>
-            <option value="upi">UPI</option>
             <option value="insurance">Insurance</option>
             <option value="other">Other</option>
           </Select>

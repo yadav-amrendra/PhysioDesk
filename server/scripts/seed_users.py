@@ -292,13 +292,13 @@ def _seed_appointments(
 
     specs: list[tuple[int, int, date, time, time, AppointmentStatus, PaymentMethod, str | None]] = [
         (0, 0, today, time(9, 0), time(9, 30), AppointmentStatus.COMPLETED, PaymentMethod.CASH, "Follow-up ACL"),
-        (1, 1, today, time(11, 0), time(11, 30), AppointmentStatus.BOOKED, PaymentMethod.UPI, None),
+        (1, 1, today, time(11, 0), time(11, 30), AppointmentStatus.BOOKED, PaymentMethod.CARD, None),
         (2, 0, today, time(10, 0), time(10, 30), AppointmentStatus.BOOKED, PaymentMethod.CARD, None),
         (4, 3, today, time(9, 30), time(10, 0), AppointmentStatus.BOOKED, PaymentMethod.CASH, "Ankle taping"),
         (5, 1, today - timedelta(days=2), time(12, 0), time(12, 30), AppointmentStatus.COMPLETED, PaymentMethod.CASH, None),
         (6, 2, today - timedelta(days=1), time(9, 0), time(9, 45), AppointmentStatus.COMPLETED, PaymentMethod.INSURANCE, "Gait work"),
         (7, 0, today - timedelta(days=10), time(14, 0), time(14, 30), AppointmentStatus.COMPLETED, PaymentMethod.CARD, "Discharge"),
-        (8, 1, today + timedelta(days=2), time(13, 0), time(13, 30), AppointmentStatus.BOOKED, PaymentMethod.UPI, None),
+        (8, 1, today + timedelta(days=2), time(13, 0), time(13, 30), AppointmentStatus.BOOKED, PaymentMethod.CARD, None),
         (9, 3, today + timedelta(days=3), time(10, 0), time(10, 30), AppointmentStatus.BOOKED, PaymentMethod.CASH, None),
         (3, 2, today - timedelta(days=5), time(10, 0), time(10, 45), AppointmentStatus.CANCELLED, PaymentMethod.CASH, "Patient cancelled"),
     ]
@@ -338,7 +338,7 @@ def _seed_invoices(
     now = datetime.now(timezone.utc)
     specs = [
         ("INV-2026-0001", 0, 1, 0, Decimal("4500.00"), Decimal("0.00"), InvoiceStatus.PAID, PaymentMethod.CARD, today, now),
-        ("INV-2026-0002", 1, 1, 1, Decimal("4500.00"), Decimal("200.00"), InvoiceStatus.DUE, PaymentMethod.UPI, today, None),
+        ("INV-2026-0002", 1, 1, 1, Decimal("4500.00"), Decimal("200.00"), InvoiceStatus.DUE, PaymentMethod.CARD, today, None),
         ("INV-2026-0003", 2, 2, 2, Decimal("6500.00"), Decimal("0.00"), InvoiceStatus.PAID, PaymentMethod.CASH, today, now),
         ("INV-2026-0004", 5, 1, None, Decimal("4500.00"), Decimal("0.00"), InvoiceStatus.DUE, PaymentMethod.CASH, today - timedelta(days=3), None),
         ("INV-2026-0005", 7, 0, 6, Decimal("2500.00"), Decimal("250.00"), InvoiceStatus.PAID, PaymentMethod.CARD, today - timedelta(days=10), now - timedelta(days=10)),
