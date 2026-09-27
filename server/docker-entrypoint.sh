@@ -27,4 +27,5 @@ echo "Seeding demo data…"
 uv run python scripts/seed_users.py
 
 echo "Starting API…"
-exec uv run fastapi run app.main:app --host 0.0.0.0 --port 8000
+PORT="${PORT:-8000}"
+exec uv run uvicorn app.main:app --host 0.0.0.0 --port "$PORT"
